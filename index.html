@@ -353,7 +353,7 @@ function render(data){
   const s = spots[sel];
   $("title").textContent = s.name;
   $("meta").textContent = s.lat.toFixed(3) + ", " + s.lon.toFixed(3) + "  •  aggiornato alle " +
-    new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    new Date(data.t || Date.now()).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 
   // Ora: valori dell’ora corrente
   const nowKey = new Date(Date.now() + (wx.utc_offset_seconds || 0) * 1000).toISOString().slice(0, 13) + ":00";
@@ -425,28 +425,71 @@ function drawChart(canvas, d, marine, wx){
 }
 
 /* ---------- Ciclo principale ---------- */
-async function refresh(){
+// Ogni richiesta ha un numero: se nel frattempo hai cambiato sito, la risposta vecchia viene scartata.
+let reqId = 0;
+const TTL = 20 * 60 * 1000, CHL_TTL = 6 * 3600 * 1000;   // dati meteo 20 min, clorofilla 6 h
+const memCache = new Map();
+const cacheKey = s => "condizioniSub.cache." + s.lat + "," + s.lon;
+function readCache(s){
+  let c = memCache.get(cacheKey(s));
+  if (!c) { c = load(cacheKey(s), null); if (c) memCache.set(cacheKey(s), c); }
+  return c;
+}
+function writeCache(s, c){ memCache.set(cacheKey(s), c); save(cacheKey(s), c); }
+
+function show(s, c){
+  lastData = { t: c.t, marine: c.marine, wx: c.wx, chl: c.chl, days: analyse(c.marine, c.wx, c.chl, s.base, c.rivers || []) };
+  render(lastData);
+}
+
+async function refresh(force = false){
+  const my = ++reqId;
   const s = spots[sel];
-  $("meta").textContent = "Caricamento dati per " + s.name + "…";
+  const stillCurrent = () => my === reqId && spots[sel] === s;
+  $("title").textContent = s.name;
+  let c = readCache(s);
+  const fresh = c && Date.now() - c.t < TTL;
+
+  if (c) show(s, c);                         // mostra subito l’ultimo dato salvato
+  else { $("days").innerHTML = ""; $("now").innerHTML = ""; }
+  if (fresh && !force) return;
+  $("meta").textContent = (c ? "Aggiornamento dati per " : "Caricamento dati per ") + s.name + "…";
+
+  // clorofilla in parallelo e senza bloccare: è lenta e cambia poco
+  const needChl = !s.lake && (force || !c || !c.chlT || Date.now() - c.chlT > CHL_TTL);
+  const chlP = needChl ? getChlorophyll(s).catch(() => null) : null;
+
   try {
-    const [marine, wx, chl, rivers] = await Promise.all([
+    const [marine, wx, rivers] = await Promise.all([
       s.lake ? null : getJSON(marineURL(s)),
       getJSON(weatherURL(s)),
-      s.lake ? null : getChlorophyll(s).catch(() => null),
       getRivers(s).catch(() => [])
     ]);
+    if (!stillCurrent()) return;
     if (marine && (!marine.hourly || marine.hourly.wave_height.every(v => v == null)))
       throw new Error("Nessun dato marino per questo punto: sposta le coordinate un po’ più al largo.");
-    lastData = { marine, wx, chl, days: analyse(marine, wx, chl, s.base, rivers) };
-    render(lastData);
+    c = { t: Date.now(), marine, wx, rivers, chl: c ? c.chl : null, chlT: c ? c.chlT : 0 };
+    writeCache(s, c);
+    show(s, c);
   } catch (e) {
+    if (!stillCurrent()) return;
     if (/postMessage|Failed to fetch|Load failed|NetworkError|clone/i.test(e.message)) {
-      $("meta").textContent = "Questa anteprima non permette di contattare i servizi meteo. Apri la pagina da GitHub Pages o da un browser.";
+      $("meta").textContent = c ? "Connessione assente: mostro i dati salvati." :
+        "Questa anteprima non permette di contattare i servizi meteo. Apri la pagina da GitHub Pages o da un browser.";
       return;
     }
     $("meta").textContent = e.message === "timeout"
       ? "Il servizio meteo non ha risposto in tempo. Premi Aggiorna per riprovare."
       : (e.message.startsWith("Nessun") ? e.message : "Dati non disponibili (" + e.message + "). Premi Aggiorna per riprovare.");
+    return;
+  }
+
+  if (chlP){
+    const chl = await chlP;
+    if (!stillCurrent() || !c) return;
+    c.chl = chl; c.chlT = Date.now();
+    writeCache(s, c);
+    show(s, c);
   }
 }
 
@@ -495,7 +538,7 @@ $("btnAdd").onclick = () => {
   const open = $("addBox").hidden; $("addBox").hidden = !open;
   $("btnAdd").setAttribute("aria-expanded", open); if (open) $("q").focus();
 };
-$("btnRefresh").onclick = refresh;
+$("btnRefresh").onclick = () => refresh(true);
 $("btnBase").onclick = () => {
   const s = spots[sel];
   const v = prompt("Visibilità orizzontale tipica a " + s.name + " in una giornata buona (metri):", s.base);
