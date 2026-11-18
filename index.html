@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Condizioni sub</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤿</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#E8F0EF; --panel:#F6FAF9; --ink:#12303D; --muted:#557079;
+  --sea:#1F6F78; --sea-soft:#B9D7D6; --sand:#B8893A; --coral:#B9472F;
+  --line:#CFDEDD; --chart-wave:#1F6F78; --chart-wind:#B8893A; --chart-rain:#7FA7C9;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#0E2431; --panel:#14303F; --ink:#DCEAEA; --muted:#8FAAB1;
+    --sea:#5FB7B9; --sea-soft:#24505B; --sand:#D9AE62; --coral:#E07A5F;
+    --line:#22495A; --chart-wave:#5FB7B9; --chart-wind:#D9AE62; --chart-rain:#7FA7C9;
+  }
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 Barlow,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px}
+h1,h2,.num{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif}
+h1{font-size:2rem;font-weight:700;margin:4px 0 2px;line-height:1.1}
+h2{font-size:1.25rem;font-weight:600;margin:24px 0 8px}
+.sub{color:var(--muted);font-size:.9rem;margin:0}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 14px}
+button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-offset:2px}
+.spots{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;margin-top:8px}
+.spots button{white-space:nowrap}
+.spots button[aria-pressed="true"]{background:var(--sea);border-color:var(--sea);color:var(--bg)}
+.now{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0 4px}
+.now div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
+.now .num{font-size:1.6rem;font-weight:600;line-height:1}
+.now span{display:block;color:var(--muted);font-size:.8rem;margin-top:4px}
+.days{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.day{border-bottom:1px solid var(--line)}
+.day>button{all:unset;display:grid;grid-template-columns:4.2rem 1fr auto;gap:12px;align-items:center;width:100%;padding:12px 0;cursor:pointer}
+.day>button:focus-visible{outline:2px solid var(--sea);outline-offset:2px}
+.dname{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:1.15rem;line-height:1.1}
+.dname small{display:block;font-weight:500;color:var(--muted);font-size:.85rem}
+/* Colonna d’acqua: più è piena, più si vede lontano */
+.col{display:flex;align-items:center;gap:10px}
+.gauge{flex:0 0 auto;width:20px;height:44px;border:1.5px solid var(--sea);border-radius:4px 4px 8px 8px;position:relative;overflow:hidden}
+.gauge i{position:absolute;left:0;right:0;bottom:0;background:var(--sea)}
+.gauge.mid i{background:var(--sand)} .gauge.low i{background:var(--coral)}
+.gauge.mid{border-color:var(--sand)} .gauge.low{border-color:var(--coral)}
+.vlabel{font-weight:600}
+.vlabel small{display:block;font-weight:400;color:var(--muted);font-size:.85rem}
+.facts{text-align:right;font-size:.9rem;color:var(--muted);line-height:1.35}
+.facts b{color:var(--ink);font-weight:600}
+.detail{padding:0 0 16px}
+.detail ul{margin:8px 0 12px;padding-left:18px;color:var(--muted);font-size:.92rem}
+.chartbox{position:relative;height:220px}
+.add{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:8px}
+.add input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.row input{flex:1 1 120px}
+.results{list-style:none;padding:0;margin:8px 0 0}
+.results button{border-radius:8px;width:100%;text-align:left;margin-top:4px}
+.msg{color:var(--coral);font-size:.92rem}
+footer{color:var(--muted);font-size:.8rem;margin:32px 0 16px}
+footer a{color:var(--sea)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media (prefers-reduced-motion: no-preference){.gauge i{transition:height .5s ease}}
+@media (max-width:480px){.day>button{grid-template-columns:3.6rem 1fr}.facts{grid-column:2;text-align:left}}
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">Condizioni sub</h1>
+  <p class="sub" id="meta">Caricamento…</p>
+
+  <nav class="spots" id="spots" aria-label="Siti d’immersione"></nav>
+  <div class="toolbar">
+    <button id="btnAdd" aria-expanded="false">Aggiungi sito</button>
+    <button id="btnRefresh">Aggiorna</button>
+    <button id="btnRemove">Rimuovi questo sito</button>
+  </div>
+
+  <section class="add" id="addBox" hidden>
+    <input id="q" placeholder="Cerca località (es. Portofino)" autocomplete="off">
+    <ul class="results" id="results"></ul>
+    <div class="row">
+      <input id="lat" placeholder="Lat (43.170)" inputmode="decimal">
+      <input id="lon" placeholder="Lon (6.535)" inputmode="decimal">
+      <input id="nm" placeholder="Nome">
+    </div>
+    <label class="row" style="align-items:center"><input type="checkbox" id="isLake" style="flex:0 0 auto;width:auto"> È un lago (niente dati di onda)</label>
+    <div class="row">
+      <button id="btnSaveManual">Salva coordinate</button>
+      <button id="btnGeo">Usa la mia posizione</button>
+    </div>
+    <p class="msg" id="addMsg"></p>
+  </section>
+
+  <div class="now" id="now"></div>
+
+  <h2>Prossimi 7 giorni</h2>
+  <p class="sub">Fascia 8–18. La colonna indica la visibilità stimata; a destra onda, vento e pioggia caduta nelle 72 ore prima.</p>
+  <ul class="days" id="days"></ul>
+
+  <footer>
+    Dati: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> (modelli marini e meteo),
+    clorofilla da <a href="https://coastwatch.pfeg.noaa.gov/erddap/" rel="noopener">NOAA ERDDAP</a> quando disponibile.
+    Per torbidità e clorofilla dettagliate: <a href="https://data.marine.copernicus.eu/viewer/expert" rel="noopener">Copernicus MyOcean</a>.
+    La visibilità è una stima euristica, non una misura: verifica sempre con chi si è immerso di recente.
+  </footer>
+</main>
+
+<script>
+"use strict";
+
+/* ---------- Configurazione ---------- */
+const DEFAULT_SPOTS = [
+  { name: "Cavalaire-sur-Mer", lat: 43.170, lon: 6.535 },
+  { name: "Lavagna", lat: 44.296, lon: 9.335 },
+  { name: "Santa Margherita Ligure", lat: 44.328, lon: 9.218 },
+  { name: "Riva del Garda", lat: 45.875, lon: 10.850, lake: true },
+  { name: "Salò", lat: 45.605, lon: 10.525, lake: true },
+  { name: "Assenza", lat: 45.703, lon: 10.760, lake: true }
+];
+const WINDOW_START = 8, WINDOW_END = 18;        // fascia oraria immersioni
+// Clorofilla satellitare (best effort): dataset ERDDAP e nome variabile.
+const CHL_SOURCES = [
+  { base: "https://coastwatch.pfeg.noaa.gov/erddap/griddap/", id: "erdMH1chla8day", v: "chlorophyll" }
+];
+const STORE_KEY = "condizioniSub.spots", SEL_KEY = "condizioniSub.sel";
+
+/* ---------- Stato ---------- */
+let spots = load(STORE_KEY, DEFAULT_SPOTS);
+DEFAULT_SPOTS.forEach(d => { if (!spots.some(s => s.name === d.name)) spots.push(d); });
+save(STORE_KEY, spots);
+let sel = Math.min(load(SEL_KEY, 0), spots.length - 1);
+let charts = {};
+let lastData = null;
+
+function load(k, d){ try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } }
+function save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+const $ = id => document.getElementById(id);
+
+/* ---------- Fetch ---------- */
+async function getJSON(url, ms = 12000){
+  let t;
+  const timeout = new Promise((_, rej) => { t = setTimeout(() => rej(new Error("timeout")), ms); });
+  try {
+    const r = await Promise.race([fetch(url), timeout]);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+
+function marineURL(s){
+  return "https://marine-api.open-meteo.com/v1/marine?latitude=" + s.lat + "&longitude=" + s.lon +
+    "&hourly=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction," +
+    "wind_wave_height,sea_surface_temperature,ocean_current_velocity,ocean_current_direction" +
+    "&timezone=auto&past_days=3&forecast_days=7&cell_selection=sea";
+}
+function weatherURL(s){
+  return "https://api.open-meteo.com/v1/forecast?latitude=" + s.lat + "&longitude=" + s.lon +
+    "&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation,cloud_cover" +
+    "&timezone=auto&past_days=3&forecast_days=7&wind_speed_unit=kn";
+}
+
+async function getChlorophyll(s){
+  const d = 0.08; // box ~±9 km, i pixel costieri sono spesso vuoti
+  for (const src of CHL_SOURCES){
+    const lonPart = "[(" + (s.lon - d).toFixed(3) + "):(" + (s.lon + d).toFixed(3) + ")]";
+    const latOrders = [
+      "[(" + (s.lat + d).toFixed(3) + "):(" + (s.lat - d).toFixed(3) + ")]",
+      "[(" + (s.lat - d).toFixed(3) + "):(" + (s.lat + d).toFixed(3) + ")]"
+    ];
+    for (const latPart of latOrders){
+      try {
+        const q = src.v + "[(last)]" + latPart + lonPart;
+        const j = await getJSON(src.base + src.id + ".json?" + encodeURIComponent(q), 9000);
+        const cols = j.table.columnNames, rows = j.table.rows;
+        const iv = cols.indexOf(src.v), it = cols.indexOf("time");
+        const vals = rows.map(r => r[iv]).filter(v => typeof v === "number" && isFinite(v));
+        if (!vals.length) return { value: null, date: rows[0]?.[it] ?? null };
+        return { value: vals.reduce((a, b) => a + b, 0) / vals.length, date: rows[0][it] };
+      } catch { /* prova l’ordine successivo / dataset successivo */ }
+    }
+  }
+  return null;
+}
+
+/* ---------- Analisi ---------- */
+function index(h){ const m = new Map(); h.time.forEach((t, i) => m.set(t, i)); return m; }
+const mean = a => { const v = a.filter(x => x != null); return v.length ? v.reduce((p, c) => p + c, 0) / v.length : null; };
+const max = a => { const v = a.filter(x => x != null); return v.length ? Math.max(...v) : null; };
+const sum = a => a.filter(x => x != null).reduce((p, c) => p + c, 0);
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+function analyse(marine, wx, chl){
+  const mh = marine ? marine.hourly : null, wh = wx.hourly;
+  const mi = mh ? index(mh) : new Map();
+  const times = wh.time; // asse orario di riferimento
+  const today = (times.find(t => t.slice(0, 10) >= localToday(wx)) || times[times.length - 1]).slice(0, 10);
+  const dates = [...new Set(times.map(t => t.slice(0, 10)))].filter(d => d >= today);
+  const pick = (arr, t) => { if (!arr) return null; const i = mi.get(t); return i == null ? null : arr[i]; };
+  const M = k => mh ? mh[k] : null;
+
+  return dates.map(date => {
+    const startIdx = times.indexOf(date + "T" + String(WINDOW_START).padStart(2, "0") + ":00");
+    const win = [], before72 = [], before36 = [], all = [];
+    times.forEach((t, i) => {
+      if (t.startsWith(date)) all.push(i);
+      if (t.startsWith(date)) { const h = +t.slice(11, 13); if (h >= WINDOW_START && h < WINDOW_END) win.push(i); }
+      if (startIdx >= 0 && i < startIdx && i >= startIdx - 72) before72.push(i);
+      if (startIdx >= 0 && i < startIdx && i >= startIdx - 36) before36.push(i);
+    });
+    const W = f => win.map(i => f(times[i], i));
+    const d = {
+      date, all,
+      hs: mean(W(t => pick(M("wave_height"), t))),
+      hsMax: max(W(t => pick(M("wave_height"), t))),
+      tp: mean(W(t => pick(M("wave_period"), t))),
+      swell: mean(W(t => pick(M("swell_wave_height"), t))),
+      sst: mean(W(t => pick(M("sea_surface_temperature"), t))),
+      cur: mean(W(t => pick(M("ocean_current_velocity"), t))),
+      wind: mean(W((t, i) => wh.wind_speed_10m[i])),
+      gust: max(W((t, i) => wh.wind_gusts_10m[i])),
+      rain72: sum(before72.map(i => wh.precipitation[i])),
+      prevHs: max(before36.map(i => pick(M("wave_height"), times[i]))),
+      prevGust: max(before36.map(i => wh.wind_gusts_10m[i])),
+      lake: !mh,
+      chl: chl?.value ?? null
+    };
+    Object.assign(d, scoreVis(d), scoreSurf(d));
+    return d;
+  });
+}
+
+function localToday(wx){
+  // data corrente nel fuso del sito
+  const off = wx.utc_offset_seconds || 0;
+  return new Date(Date.now() + off * 1000).toISOString().slice(0, 10);
+}
+
+function scoreVis(d){
+  let s = 5; const why = [];
+  const step = (val, rules, label) => {
+    if (val == null) return;
+    for (const [thr, pen] of rules) if (val > thr) { s -= pen; why.push(label(val)); return; }
+  };
+  step(d.rain72, [[60, 3], [30, 2], [15, 1], [5, 0.5]], v => "Pioggia nelle 72 ore prima: " + v.toFixed(0) + " mm, possibile apporto di torbido da fiumi e scarichi");
+  step(d.prevHs, [[3, 2.5], [2, 2], [1.2, 1], [0.8, 0.5]], v => "Mare formato nelle 36 ore prima (fino a " + v.toFixed(1) + " m): sedimento in sospensione");
+  if (d.lake) step(d.prevGust, [[30, 1.5], [22, 1], [16, 0.5]], v => "Vento forte nelle 36 ore prima (raffiche " + v.toFixed(0) + " kn): acqua rimescolata");
+  step(d.hs, [[1.2, 1], [0.6, 0.5]], v => "Onda nella giornata " + v.toFixed(1) + " m");
+  step(d.chl, [[1.5, 2], [0.6, 1], [0.3, 0.5]], v => "Clorofilla " + v.toFixed(2) + " mg/m³: fitoplancton presente");
+  s = clamp(Math.round(s * 2) / 2, 1, 5);
+  const lab = s >= 4.5 ? "Ottima" : s >= 3.5 ? "Buona" : s >= 2.5 ? "Discreta" : s >= 1.5 ? "Scarsa" : "Pessima";
+  if (!why.length) why.push("Nessun fattore di torbidità rilevato");
+  return { vis: s, visLabel: lab, visWhy: why };
+}
+
+function scoreSurf(d){
+  let s = 5;
+  if (d.hs != null) s -= d.hs > 1.5 ? 3.5 : d.hs > 1 ? 2.5 : d.hs > 0.7 ? 1.5 : d.hs > 0.4 ? 0.5 : 0;
+  if (d.gust != null) s -= d.gust > 30 ? 2.5 : d.gust > 22 ? 1.5 : d.gust > 15 ? 0.5 : 0;
+  if (d.tp != null && d.hs != null && d.tp < 5 && d.hs > 0.5) s -= 0.5; // onda corta e ripida
+  s = clamp(Math.round(s * 2) / 2, 1, 5);
+  const lab = s >= 4.5 ? "Calmo" : s >= 3.5 ? "Ok" : s >= 2.5 ? "Mosso" : s >= 1.5 ? "Impegnativo" : "Sconsigliato";
+  return { surf: s, surfLabel: lab };
+}
+
+/* ---------- Render ---------- */
+const fmt = (v, n = 1, u = "") => v == null ? "n/d" : v.toFixed(n) + u;
+const dayName = d => new Date(d + "T12:00").toLocaleDateString("it-IT", { weekday: "short" });
+const dayNum = d => new Date(d + "T12:00").toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+
+function renderSpots(){
+  $("spots").innerHTML = "";
+  spots.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.textContent = s.name; b.setAttribute("aria-pressed", i === sel);
+    b.onclick = () => { sel = i; save(SEL_KEY, sel); renderSpots(); refresh(); };
+    $("spots").appendChild(b);
+  });
+  $("btnRemove").hidden = spots.length < 2;
+}
+
+function render(data){
+  const { days, chl, marine, wx } = data;
+  const s = spots[sel];
+  $("title").textContent = s.name;
+  $("meta").textContent = s.lat.toFixed(3) + ", " + s.lon.toFixed(3) + "  •  aggiornato alle " +
+    new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+
+  // Ora: valori dell’ora corrente
+  const nowKey = new Date(Date.now() + (wx.utc_offset_seconds || 0) * 1000).toISOString().slice(0, 13) + ":00";
+  const wi = wx.hourly.time.indexOf(nowKey), mi = marine ? marine.hourly.time.indexOf(nowKey) : -1;
+  const chlText = chl && chl.value != null ? chl.value.toFixed(2) : "n/d";
+  $("now").innerHTML = !marine
+    ? box(fmt(wi >= 0 ? wx.hourly.wind_speed_10m[wi] : null, 0, " kn"), "Vento adesso") +
+      box(fmt(wi >= 0 ? wx.hourly.wind_gusts_10m[wi] : null, 0, " kn"), "Raffiche adesso") +
+      box(fmt(days[0] ? days[0].rain72 : null, 0, " mm"), "Pioggia ultime 72 h")
+    :
+    box(fmt(mi >= 0 ? marine.hourly.wave_height[mi] : null, 1, " m"), "Onda adesso") +
+    box(fmt(mi >= 0 ? marine.hourly.sea_surface_temperature[mi] : null, 1, "°"), "Acqua in superficie") +
+    box(chlText, chl && chl.date ? "Clorofilla mg/m³ (" + chl.date.slice(0, 10) + ")" : "Clorofilla mg/m³");
+
+  Object.values(charts).forEach(c => c.destroy()); charts = {};
+  $("days").innerHTML = "";
+  days.forEach((d, k) => {
+    const li = document.createElement("li"); li.className = "day";
+    const cls = d.vis >= 3.5 ? "" : d.vis >= 2.5 ? "mid" : "low";
+    li.innerHTML =
+      '<button aria-expanded="false">' +
+        '<span class="dname">' + (k === 0 ? "Oggi" : dayName(d.date)) + "<small>" + dayNum(d.date) + "</small></span>" +
+        '<span class="col"><span class="gauge ' + cls + '" aria-hidden="true"><i style="height:' + (d.vis / 5 * 100) + '%"></i></span>' +
+        '<span class="vlabel">Visibilità ' + d.visLabel.toLowerCase() + "<small>Superficie: " + d.surfLabel.toLowerCase() + "</small></span></span>" +
+        '<span class="facts">' + (d.lake ? "lago" : "<b>" + fmt(d.hs, 1, " m") + "</b> " + fmt(d.tp, 0, " s")) +
+          "<br>vento <b>" + fmt(d.wind, 0) + "</b>, raffiche " + fmt(d.gust, 0, " kn") +
+          "<br>pioggia 72 h " + fmt(d.rain72, 0, " mm") + "</span>" +
+      "</button>" +
+      '<div class="detail" hidden><ul>' + d.visWhy.map(w => "<li>" + w + "</li>").join("") +
+        (d.lake ? "<li>Sui laghi il modello non fornisce onda e temperatura dell’acqua: la stima usa vento e piogge</li>"
+                : "<li>Swell " + fmt(d.swell, 1, " m") + ", corrente media " + fmt(d.cur, 1, " km/h") + ", acqua " + fmt(d.sst, 1, "°") + "</li>") +
+      '</ul><div class="chartbox"><canvas aria-label="Andamento orario di onda, raffiche e pioggia"></canvas></div></div>';
+    const btn = li.querySelector("button"), det = li.querySelector(".detail");
+    btn.onclick = () => {
+      const open = det.hidden; det.hidden = !open; btn.setAttribute("aria-expanded", open);
+      if (open && !charts[k]) charts[k] = drawChart(li.querySelector("canvas"), d, marine, wx);
+    };
+    $("days").appendChild(li);
+  });
+}
+const box = (v, l) => '<div><b class="num">' + v + "</b><span>" + l + "</span></div>";
+
+function drawChart(canvas, d, marine, wx){
+  const css = getComputedStyle(document.documentElement);
+  const c = n => css.getPropertyValue(n).trim();
+  const mi = marine ? index(marine.hourly) : new Map();
+  const labels = d.all.map(i => wx.hourly.time[i].slice(11, 13));
+  const wave = d.all.map(i => { const j = mi.get(wx.hourly.time[i]); return j == null ? null : marine.hourly.wave_height[j]; });
+  return new Chart(canvas, {
+    data: { labels, datasets: [
+      { hidden: !marine, type: "line", label: "Onda (m)", data: wave, borderColor: c("--chart-wave"), backgroundColor: c("--chart-wave"), yAxisID: "y", tension: .3, pointRadius: 0, borderWidth: 2 },
+      { type: "line", label: "Raffiche (kn)", data: d.all.map(i => wx.hourly.wind_gusts_10m[i]), borderColor: c("--chart-wind"), backgroundColor: c("--chart-wind"), yAxisID: "y1", tension: .3, pointRadius: 0, borderWidth: 2, borderDash: [4, 3] },
+      { type: "bar", label: "Pioggia (mm)", data: d.all.map(i => wx.hourly.precipitation[i]), backgroundColor: c("--chart-rain"), yAxisID: "y2" }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      plugins: { legend: { labels: { color: c("--muted"), boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { color: c("--muted"), maxTicksLimit: 8 }, grid: { color: c("--line") } },
+        y: { position: "left", beginAtZero: true, ticks: { color: c("--chart-wave") }, grid: { color: c("--line") } },
+        y1: { position: "right", beginAtZero: true, ticks: { color: c("--chart-wind") }, grid: { display: false } },
+        y2: { display: false, beginAtZero: true, suggestedMax: 10 }
+      }
+    }
+  });
+}
+
+/* ---------- Ciclo principale ---------- */
+async function refresh(){
+  const s = spots[sel];
+  $("meta").textContent = "Caricamento dati per " + s.name + "…";
+  try {
+    const [marine, wx, chl] = await Promise.all([
+      s.lake ? null : getJSON(marineURL(s)),
+      getJSON(weatherURL(s)),
+      s.lake ? null : getChlorophyll(s).catch(() => null)
+    ]);
+    if (marine && (!marine.hourly || marine.hourly.wave_height.every(v => v == null)))
+      throw new Error("Nessun dato marino per questo punto: sposta le coordinate un po’ più al largo.");
+    lastData = { marine, wx, chl, days: analyse(marine, wx, chl) };
+    render(lastData);
+  } catch (e) {
+    if (/postMessage|Failed to fetch|Load failed|NetworkError|clone/i.test(e.message)) {
+      $("meta").textContent = "Questa anteprima non permette di contattare i servizi meteo. Apri la pagina da GitHub Pages o da un browser.";
+      return;
+    }
+    $("meta").textContent = e.message === "timeout"
+      ? "Il servizio meteo non ha risposto in tempo. Premi Aggiorna per riprovare."
+      : (e.message.startsWith("Nessun") ? e.message : "Dati non disponibili (" + e.message + "). Premi Aggiorna per riprovare.");
+  }
+}
+
+/* ---------- Gestione siti ---------- */
+function addSpot(name, lat, lon){
+  spots.push({ name, lat: +(+lat).toFixed(4), lon: +(+lon).toFixed(4), lake: $("isLake").checked || undefined });
+  sel = spots.length - 1; save(STORE_KEY, spots); save(SEL_KEY, sel);
+  $("addBox").hidden = true; $("btnAdd").setAttribute("aria-expanded", "false");
+  renderSpots(); refresh();
+}
+
+let qTimer;
+$("q").addEventListener("input", () => {
+  clearTimeout(qTimer);
+  const q = $("q").value.trim(); if (q.length < 3) { $("results").innerHTML = ""; return; }
+  qTimer = setTimeout(async () => {
+    try {
+      const j = await getJSON("https://geocoding-api.open-meteo.com/v1/search?count=6&language=it&name=" + encodeURIComponent(q));
+      $("results").innerHTML = "";
+      (j.results || []).forEach(r => {
+        const li = document.createElement("li"), b = document.createElement("button");
+        b.textContent = r.name + (r.admin1 ? ", " + r.admin1 : "") + " (" + (r.country_code || "") + ")";
+        b.onclick = () => addSpot(r.name, r.latitude, r.longitude);
+        li.appendChild(b); $("results").appendChild(li);
+      });
+      $("addMsg").textContent = (j.results || []).length ? "" : "Nessuna località trovata. Inserisci le coordinate a mano.";
+    } catch { $("addMsg").textContent = "Ricerca non disponibile. Inserisci le coordinate a mano."; }
+  }, 350);
+});
+
+$("btnSaveManual").onclick = () => {
+  const lat = parseFloat($("lat").value.replace(",", ".")), lon = parseFloat($("lon").value.replace(",", "."));
+  if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180)
+    return $("addMsg").textContent = "Coordinate non valide: usa gradi decimali, es. 43.170 e 6.535.";
+  addSpot($("nm").value.trim() || lat.toFixed(3) + ", " + lon.toFixed(3), lat, lon);
+};
+$("btnGeo").onclick = () => {
+  if (!navigator.geolocation) return $("addMsg").textContent = "Il browser non fornisce la posizione.";
+  navigator.geolocation.getCurrentPosition(
+    p => { $("lat").value = p.coords.latitude.toFixed(4); $("lon").value = p.coords.longitude.toFixed(4); $("addMsg").textContent = "Posizione inserita: dai un nome e salva."; },
+    () => $("addMsg").textContent = "Posizione non concessa dal browser."
+  );
+};
+$("btnAdd").onclick = () => {
+  const open = $("addBox").hidden; $("addBox").hidden = !open;
+  $("btnAdd").setAttribute("aria-expanded", open); if (open) $("q").focus();
+};
+$("btnRefresh").onclick = refresh;
+$("btnRemove").onclick = () => {
+  if (spots.length < 2 || !confirm("Rimuovere " + spots[sel].name + "?")) return;
+  spots.splice(sel, 1); sel = 0; save(STORE_KEY, spots); save(SEL_KEY, sel); renderSpots(); refresh();
+};
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => lastData && render(lastData));
+
+renderSpots(); refresh();
+</script>
+</body>
+</html>
