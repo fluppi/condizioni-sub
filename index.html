@@ -115,7 +115,7 @@ footer a{color:var(--sea)}
   <ul class="days" id="days"></ul>
 
   <footer>
-    Dati: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> (modelli marini e meteo),
+    Dati: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> (modelli marini, meteo e portate fluviali GloFAS),
     clorofilla da <a href="https://coastwatch.pfeg.noaa.gov/erddap/" rel="noopener">NOAA ERDDAP</a> quando disponibile.
     Per torbidità e clorofilla dettagliate: <a href="https://data.marine.copernicus.eu/viewer/expert" rel="noopener">Copernicus MyOcean</a>.
     La visibilità è una stima euristica, non una misura: verifica sempre con chi si è immerso di recente.
@@ -129,9 +129,10 @@ footer a{color:var(--sea)}
 const DEFAULT_SPOTS = [
   // base = visibilità orizzontale tipica (m) in una giornata buona: tarala con “Visibilità tipica”
   { name: "Cavalaire-sur-Mer", lat: 43.170, lon: 6.535, base: 20 },
-  { name: "Lavagna", lat: 44.296, lon: 9.335, base: 15 },
-  { name: "Santa Margherita Ligure", lat: 44.328, lon: 9.218, base: 18 },
-  { name: "Riva del Garda", lat: 45.875, lon: 10.850, lake: true, base: 10 },
+  // rivers: fiumi che scaricano vicino al sito (punto sull’alveo, poco a monte della foce); w = peso 0–1
+  { name: "Lavagna", lat: 44.296, lon: 9.335, base: 15, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 1 }] },
+  { name: "Santa Margherita Ligure", lat: 44.328, lon: 9.218, base: 18, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 0.5 }] },
+  { name: "Riva del Garda", lat: 45.875, lon: 10.850, lake: true, base: 10, rivers: [{ name: "Sarca", lat: 45.900, lon: 10.875, w: 1 }] },
   { name: "Salò", lat: 45.605, lon: 10.525, lake: true, base: 7 },
   { name: "Assenza", lat: 45.703, lon: 10.760, lake: true, base: 10 }
 ];
@@ -146,7 +147,8 @@ const STORE_KEY = "condizioniSub.spots", SEL_KEY = "condizioniSub.sel";
 let spots = load(STORE_KEY, DEFAULT_SPOTS);
 DEFAULT_SPOTS.forEach(d => {
   const e = spots.find(s => s.name === d.name);
-  if (!e) spots.push(d); else if (e.base == null) e.base = d.base;
+  if (!e) spots.push(d);
+  else { if (e.base == null) e.base = d.base; if (!e.rivers && d.rivers) e.rivers = d.rivers; }
 });
 spots.forEach(s => { if (s.base == null) s.base = s.lake ? 8 : 15; });
 save(STORE_KEY, spots);
@@ -204,6 +206,16 @@ async function getChlorophyll(s){
   return null;
 }
 
+async function getRivers(s){
+  if (!s.rivers || !s.rivers.length) return [];
+  const res = await Promise.all(s.rivers.map(r =>
+    getJSON("https://flood-api.open-meteo.com/v1/flood?latitude=" + r.lat + "&longitude=" + r.lon +
+            "&daily=river_discharge&past_days=60&forecast_days=10")
+      .then(j => ({ ...r, time: j.daily.time, q: j.daily.river_discharge }))
+      .catch(() => null)));
+  return res.filter(Boolean);
+}
+
 /* ---------- Analisi ---------- */
 function index(h){ const m = new Map(); h.time.forEach((t, i) => m.set(t, i)); return m; }
 const mean = a => { const v = a.filter(x => x != null); return v.length ? v.reduce((p, c) => p + c, 0) / v.length : null; };
@@ -211,7 +223,7 @@ const max = a => { const v = a.filter(x => x != null); return v.length ? Math.ma
 const sum = a => a.filter(x => x != null).reduce((p, c) => p + c, 0);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
-function analyse(marine, wx, chl, base){
+function analyse(marine, wx, chl, base, rivers = []){
   const mh = marine ? marine.hourly : null, wh = wx.hourly;
   const mi = mh ? index(mh) : new Map();
   const times = wh.time; // asse orario di riferimento
@@ -219,6 +231,11 @@ function analyse(marine, wx, chl, base){
   const dates = [...new Set(times.map(t => t.slice(0, 10)))].filter(d => d >= today);
   const pick = (arr, t) => { if (!arr) return null; const i = mi.get(t); return i == null ? null : arr[i]; };
   const M = k => mh ? mh[k] : null;
+  // portata normale = mediana dei 60 giorni passati
+  const riv = rivers.map(r => {
+    const past = r.q.filter((v, i) => v != null && r.time[i] < today).sort((a, b) => a - b);
+    return { ...r, median: past.length ? past[Math.floor(past.length / 2)] : null };
+  });
 
   return dates.map(date => {
     const startIdx = times.indexOf(date + "T" + String(WINDOW_START).padStart(2, "0") + ":00");
@@ -244,12 +261,20 @@ function analyse(marine, wx, chl, base){
       prevHs: max(before36.map(i => pick(M("wave_height"), times[i]))),
       prevGust: max(before36.map(i => wh.wind_gusts_10m[i])),
       lake: !mh, base,
+      riv: riv.map(r => {
+        // massimo tra il giorno stesso e i due precedenti (il torbido arriva e resta)
+        const vals = r.time.map((t, i) => (t <= date && t >= addDays(date, -2)) ? r.q[i] : null);
+        const q = max(vals);
+        return { name: r.name, w: r.w, q, ratio: q != null && r.median ? q / r.median : null };
+      }),
       chl: chl?.value ?? null
     };
     Object.assign(d, scoreVis(d), scoreSurf(d));
     return d;
   });
 }
+
+function addDays(iso, n){ const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 
 function localToday(wx){
   // data corrente nel fuso del sito
@@ -275,6 +300,16 @@ function scoreVis(d){
   step(d.rain72, [[60, 0.4], [30, 0.6], [15, 0.75], [5, 0.9]], v => "Pioggia nelle 72 ore prima: " + v.toFixed(0) + " mm, torbido da fiumi e scarichi");
   step(d.prevHs, [[3, 0.4], [2, 0.55], [1.2, 0.75], [0.8, 0.9]], v => "Mare formato nelle 36 ore prima (fino a " + v.toFixed(1) + " m): sedimento in sospensione");
   if (d.lake) step(d.prevGust, [[30, 0.65], [22, 0.8], [16, 0.9]], v => "Vento forte nelle 36 ore prima (raffiche " + v.toFixed(0) + " kn): acqua rimescolata");
+  for (const r of d.riv || []){
+    if (r.ratio == null) continue;
+    const rules = [[4, 0.5], [2.5, 0.65], [1.6, 0.8], [1.2, 0.92]];
+    const hit = rules.find(([thr]) => r.ratio > thr);
+    if (!hit) continue;
+    const k = 1 - r.w * (1 - hit[1]);
+    f *= k;
+    why.push("Fiume " + r.name + ": portata " + r.q.toFixed(0) + " m³/s, " + r.ratio.toFixed(1).replace(".", ",") +
+             "× il normale (−" + Math.round((1 - k) * 100) + "%)");
+  }
   step(d.hs, [[1.2, 0.8], [0.6, 0.9]], v => "Onda nella giornata " + v.toFixed(1) + " m");
   if (chlVis != null && chlVis < d.base) why.push("Clorofilla " + d.chl.toFixed(2) + " mg/m³: plancton, limita a circa " + Math.round(chlVis) + " m");
   const m = Math.max(1, start * f);
@@ -349,6 +384,8 @@ function render(data){
       "</button>" +
       '<div class="detail" hidden><ul>' + d.visWhy.map(w => "<li>" + w + "</li>").join("") +
         "<li>Visibilità tipica del sito in giornata buona: " + d.base + " m (modificabile)</li>" +
+        (d.riv || []).filter(r => r.q != null && !(r.ratio > 1.2)).map(r =>
+          "<li>Fiume " + r.name + ": " + r.q.toFixed(0) + " m³/s, portata nella norma</li>").join("") +
         (d.lake ? "<li>Sui laghi il modello non fornisce onda e temperatura dell’acqua: la stima usa vento e piogge</li>"
                 : "<li>Swell " + fmt(d.swell, 1, " m") + ", corrente media " + fmt(d.cur, 1, " km/h") + ", acqua " + fmt(d.sst, 1, "°") + "</li>") +
       '</ul><div class="chartbox"><canvas aria-label="Andamento orario di onda, raffiche e pioggia"></canvas></div></div>';
@@ -392,14 +429,15 @@ async function refresh(){
   const s = spots[sel];
   $("meta").textContent = "Caricamento dati per " + s.name + "…";
   try {
-    const [marine, wx, chl] = await Promise.all([
+    const [marine, wx, chl, rivers] = await Promise.all([
       s.lake ? null : getJSON(marineURL(s)),
       getJSON(weatherURL(s)),
-      s.lake ? null : getChlorophyll(s).catch(() => null)
+      s.lake ? null : getChlorophyll(s).catch(() => null),
+      getRivers(s).catch(() => [])
     ]);
     if (marine && (!marine.hourly || marine.hourly.wave_height.every(v => v == null)))
       throw new Error("Nessun dato marino per questo punto: sposta le coordinate un po’ più al largo.");
-    lastData = { marine, wx, chl, days: analyse(marine, wx, chl, s.base) };
+    lastData = { marine, wx, chl, days: analyse(marine, wx, chl, s.base, rivers) };
     render(lastData);
   } catch (e) {
     if (/postMessage|Failed to fetch|Load failed|NetworkError|clone/i.test(e.message)) {
