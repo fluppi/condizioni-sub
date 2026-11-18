@@ -57,7 +57,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-of
 .gauge.mid i{background:var(--sand)} .gauge.low i{background:var(--coral)}
 .gauge.mid{border-color:var(--sand)} .gauge.low{border-color:var(--coral)}
 .vlabel{font-weight:600}
-.vlabel small{display:block;font-weight:400;color:var(--muted);font-size:.85rem}
+.vlabel{font-family:"Barlow Condensed",sans-serif;font-size:1.2rem}
+.vlabel small{display:block;font-family:Barlow,system-ui,sans-serif;font-weight:400;color:var(--muted);font-size:.82rem;line-height:1.3}
 .facts{text-align:right;font-size:.9rem;color:var(--muted);line-height:1.35}
 .facts b{color:var(--ink);font-weight:600}
 .detail{padding:0 0 16px}
@@ -86,6 +87,7 @@ footer a{color:var(--sea)}
   <div class="toolbar">
     <button id="btnAdd" aria-expanded="false">Aggiungi sito</button>
     <button id="btnRefresh">Aggiorna</button>
+    <button id="btnBase">Visibilità tipica</button>
     <button id="btnRemove">Rimuovi questo sito</button>
   </div>
 
@@ -96,6 +98,7 @@ footer a{color:var(--sea)}
       <input id="lat" placeholder="Lat (43.170)" inputmode="decimal">
       <input id="lon" placeholder="Lon (6.535)" inputmode="decimal">
       <input id="nm" placeholder="Nome">
+      <input id="baseIn" placeholder="Visibilità tipica (m)" inputmode="decimal">
     </div>
     <label class="row" style="align-items:center"><input type="checkbox" id="isLake" style="flex:0 0 auto;width:auto"> È un lago (niente dati di onda)</label>
     <div class="row">
@@ -108,7 +111,7 @@ footer a{color:var(--sea)}
   <div class="now" id="now"></div>
 
   <h2>Prossimi 7 giorni</h2>
-  <p class="sub">Fascia 8–18. La colonna indica la visibilità stimata; a destra onda, vento e pioggia caduta nelle 72 ore prima.</p>
+  <p class="sub">Fascia 8–18. Visibilità orizzontale stimata in metri; in verticale (guardando giù) di solito è circa il 40% in più. A destra onda, vento e pioggia delle 72 ore prima.</p>
   <ul class="days" id="days"></ul>
 
   <footer>
@@ -124,12 +127,13 @@ footer a{color:var(--sea)}
 
 /* ---------- Configurazione ---------- */
 const DEFAULT_SPOTS = [
-  { name: "Cavalaire-sur-Mer", lat: 43.170, lon: 6.535 },
-  { name: "Lavagna", lat: 44.296, lon: 9.335 },
-  { name: "Santa Margherita Ligure", lat: 44.328, lon: 9.218 },
-  { name: "Riva del Garda", lat: 45.875, lon: 10.850, lake: true },
-  { name: "Salò", lat: 45.605, lon: 10.525, lake: true },
-  { name: "Assenza", lat: 45.703, lon: 10.760, lake: true }
+  // base = visibilità orizzontale tipica (m) in una giornata buona: tarala con “Visibilità tipica”
+  { name: "Cavalaire-sur-Mer", lat: 43.170, lon: 6.535, base: 20 },
+  { name: "Lavagna", lat: 44.296, lon: 9.335, base: 15 },
+  { name: "Santa Margherita Ligure", lat: 44.328, lon: 9.218, base: 18 },
+  { name: "Riva del Garda", lat: 45.875, lon: 10.850, lake: true, base: 10 },
+  { name: "Salò", lat: 45.605, lon: 10.525, lake: true, base: 7 },
+  { name: "Assenza", lat: 45.703, lon: 10.760, lake: true, base: 10 }
 ];
 const WINDOW_START = 8, WINDOW_END = 18;        // fascia oraria immersioni
 // Clorofilla satellitare (best effort): dataset ERDDAP e nome variabile.
@@ -140,7 +144,11 @@ const STORE_KEY = "condizioniSub.spots", SEL_KEY = "condizioniSub.sel";
 
 /* ---------- Stato ---------- */
 let spots = load(STORE_KEY, DEFAULT_SPOTS);
-DEFAULT_SPOTS.forEach(d => { if (!spots.some(s => s.name === d.name)) spots.push(d); });
+DEFAULT_SPOTS.forEach(d => {
+  const e = spots.find(s => s.name === d.name);
+  if (!e) spots.push(d); else if (e.base == null) e.base = d.base;
+});
+spots.forEach(s => { if (s.base == null) s.base = s.lake ? 8 : 15; });
 save(STORE_KEY, spots);
 let sel = Math.min(load(SEL_KEY, 0), spots.length - 1);
 let charts = {};
@@ -203,7 +211,7 @@ const max = a => { const v = a.filter(x => x != null); return v.length ? Math.ma
 const sum = a => a.filter(x => x != null).reduce((p, c) => p + c, 0);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
-function analyse(marine, wx, chl){
+function analyse(marine, wx, chl, base){
   const mh = marine ? marine.hourly : null, wh = wx.hourly;
   const mi = mh ? index(mh) : new Map();
   const times = wh.time; // asse orario di riferimento
@@ -235,7 +243,7 @@ function analyse(marine, wx, chl){
       rain72: sum(before72.map(i => wh.precipitation[i])),
       prevHs: max(before36.map(i => pick(M("wave_height"), times[i]))),
       prevGust: max(before36.map(i => wh.wind_gusts_10m[i])),
-      lake: !mh,
+      lake: !mh, base,
       chl: chl?.value ?? null
     };
     Object.assign(d, scoreVis(d), scoreSurf(d));
@@ -250,20 +258,33 @@ function localToday(wx){
 }
 
 function scoreVis(d){
-  let s = 5; const why = [];
+  // 1) Punto di partenza: visibilità tipica del sito, limitata dalla clorofilla se disponibile.
+  //    Kd490 da clorofilla (Morel), visibilità orizzontale ≈ 0,65 / Kd (stima empirica).
+  let start = d.base, chlVis = null;
+  if (d.chl != null){
+    const kd = 0.0166 + 0.0773 * Math.pow(d.chl, 0.6715);
+    chlVis = 0.65 / kd;
+    start = Math.min(d.base * 1.2, chlVis);
+  }
+  // 2) Fattori che riducono la visibilità.
+  let f = 1; const why = [];
   const step = (val, rules, label) => {
     if (val == null) return;
-    for (const [thr, pen] of rules) if (val > thr) { s -= pen; why.push(label(val)); return; }
+    for (const [thr, k] of rules) if (val > thr) { f *= k; why.push(label(val) + " (−" + Math.round((1 - k) * 100) + "%)"); return; }
   };
-  step(d.rain72, [[60, 3], [30, 2], [15, 1], [5, 0.5]], v => "Pioggia nelle 72 ore prima: " + v.toFixed(0) + " mm, possibile apporto di torbido da fiumi e scarichi");
-  step(d.prevHs, [[3, 2.5], [2, 2], [1.2, 1], [0.8, 0.5]], v => "Mare formato nelle 36 ore prima (fino a " + v.toFixed(1) + " m): sedimento in sospensione");
-  if (d.lake) step(d.prevGust, [[30, 1.5], [22, 1], [16, 0.5]], v => "Vento forte nelle 36 ore prima (raffiche " + v.toFixed(0) + " kn): acqua rimescolata");
-  step(d.hs, [[1.2, 1], [0.6, 0.5]], v => "Onda nella giornata " + v.toFixed(1) + " m");
-  step(d.chl, [[1.5, 2], [0.6, 1], [0.3, 0.5]], v => "Clorofilla " + v.toFixed(2) + " mg/m³: fitoplancton presente");
-  s = clamp(Math.round(s * 2) / 2, 1, 5);
-  const lab = s >= 4.5 ? "Ottima" : s >= 3.5 ? "Buona" : s >= 2.5 ? "Discreta" : s >= 1.5 ? "Scarsa" : "Pessima";
+  step(d.rain72, [[60, 0.4], [30, 0.6], [15, 0.75], [5, 0.9]], v => "Pioggia nelle 72 ore prima: " + v.toFixed(0) + " mm, torbido da fiumi e scarichi");
+  step(d.prevHs, [[3, 0.4], [2, 0.55], [1.2, 0.75], [0.8, 0.9]], v => "Mare formato nelle 36 ore prima (fino a " + v.toFixed(1) + " m): sedimento in sospensione");
+  if (d.lake) step(d.prevGust, [[30, 0.65], [22, 0.8], [16, 0.9]], v => "Vento forte nelle 36 ore prima (raffiche " + v.toFixed(0) + " kn): acqua rimescolata");
+  step(d.hs, [[1.2, 0.8], [0.6, 0.9]], v => "Onda nella giornata " + v.toFixed(1) + " m");
+  if (chlVis != null && chlVis < d.base) why.push("Clorofilla " + d.chl.toFixed(2) + " mg/m³: plancton, limita a circa " + Math.round(chlVis) + " m");
+  const m = Math.max(1, start * f);
+  const r = m / d.base;
+  const lab = r >= 0.85 ? "Ottima" : r >= 0.65 ? "Buona" : r >= 0.45 ? "Discreta" : r >= 0.3 ? "Scarsa" : "Pessima";
   if (!why.length) why.push("Nessun fattore di torbidità rilevato");
-  return { vis: s, visLabel: lab, visWhy: why };
+  return {
+    visM: m, visLo: Math.max(1, Math.round(m * 0.8)), visHi: Math.round(m * 1.15),
+    visVert: Math.round(m * 1.4), visRatio: r, visLabel: lab, visWhy: why
+  };
 }
 
 function scoreSurf(d){
@@ -316,17 +337,18 @@ function render(data){
   $("days").innerHTML = "";
   days.forEach((d, k) => {
     const li = document.createElement("li"); li.className = "day";
-    const cls = d.vis >= 3.5 ? "" : d.vis >= 2.5 ? "mid" : "low";
+    const cls = d.visRatio >= 0.65 ? "" : d.visRatio >= 0.45 ? "mid" : "low";
     li.innerHTML =
       '<button aria-expanded="false">' +
         '<span class="dname">' + (k === 0 ? "Oggi" : dayName(d.date)) + "<small>" + dayNum(d.date) + "</small></span>" +
-        '<span class="col"><span class="gauge ' + cls + '" aria-hidden="true"><i style="height:' + (d.vis / 5 * 100) + '%"></i></span>' +
-        '<span class="vlabel">Visibilità ' + d.visLabel.toLowerCase() + "<small>Superficie: " + d.surfLabel.toLowerCase() + "</small></span></span>" +
+        '<span class="col"><span class="gauge ' + cls + '" aria-hidden="true"><i style="height:' + clamp(d.visM / 25 * 100, 6, 100) + '%"></i></span>' +
+        '<span class="vlabel">' + d.visLo + "–" + d.visHi + " m <small>" + d.visLabel.toLowerCase() + ", in verticale ~" + d.visVert + " m<br>Superficie: " + d.surfLabel.toLowerCase() + "</small></span></span>" +
         '<span class="facts">' + (d.lake ? "lago" : "<b>" + fmt(d.hs, 1, " m") + "</b> " + fmt(d.tp, 0, " s")) +
           "<br>vento <b>" + fmt(d.wind, 0) + "</b>, raffiche " + fmt(d.gust, 0, " kn") +
           "<br>pioggia 72 h " + fmt(d.rain72, 0, " mm") + "</span>" +
       "</button>" +
       '<div class="detail" hidden><ul>' + d.visWhy.map(w => "<li>" + w + "</li>").join("") +
+        "<li>Visibilità tipica del sito in giornata buona: " + d.base + " m (modificabile)</li>" +
         (d.lake ? "<li>Sui laghi il modello non fornisce onda e temperatura dell’acqua: la stima usa vento e piogge</li>"
                 : "<li>Swell " + fmt(d.swell, 1, " m") + ", corrente media " + fmt(d.cur, 1, " km/h") + ", acqua " + fmt(d.sst, 1, "°") + "</li>") +
       '</ul><div class="chartbox"><canvas aria-label="Andamento orario di onda, raffiche e pioggia"></canvas></div></div>';
@@ -377,7 +399,7 @@ async function refresh(){
     ]);
     if (marine && (!marine.hourly || marine.hourly.wave_height.every(v => v == null)))
       throw new Error("Nessun dato marino per questo punto: sposta le coordinate un po’ più al largo.");
-    lastData = { marine, wx, chl, days: analyse(marine, wx, chl) };
+    lastData = { marine, wx, chl, days: analyse(marine, wx, chl, s.base) };
     render(lastData);
   } catch (e) {
     if (/postMessage|Failed to fetch|Load failed|NetworkError|clone/i.test(e.message)) {
@@ -392,7 +414,8 @@ async function refresh(){
 
 /* ---------- Gestione siti ---------- */
 function addSpot(name, lat, lon){
-  spots.push({ name, lat: +(+lat).toFixed(4), lon: +(+lon).toFixed(4), lake: $("isLake").checked || undefined });
+  spots.push({ name, lat: +(+lat).toFixed(4), lon: +(+lon).toFixed(4), lake: $("isLake").checked || undefined,
+    base: parseFloat($("baseIn").value.replace(",", ".")) || ($("isLake").checked ? 8 : 15) });
   sel = spots.length - 1; save(STORE_KEY, spots); save(SEL_KEY, sel);
   $("addBox").hidden = true; $("btnAdd").setAttribute("aria-expanded", "false");
   renderSpots(); refresh();
@@ -435,6 +458,14 @@ $("btnAdd").onclick = () => {
   $("btnAdd").setAttribute("aria-expanded", open); if (open) $("q").focus();
 };
 $("btnRefresh").onclick = refresh;
+$("btnBase").onclick = () => {
+  const s = spots[sel];
+  const v = prompt("Visibilità orizzontale tipica a " + s.name + " in una giornata buona (metri):", s.base);
+  if (v == null) return;
+  const n = parseFloat(String(v).replace(",", "."));
+  if (!isFinite(n) || n < 1 || n > 60) return alert("Inserisci un numero tra 1 e 60.");
+  s.base = n; save(STORE_KEY, spots); refresh();
+};
 $("btnRemove").onclick = () => {
   if (spots.length < 2 || !confirm("Rimuovere " + spots[sel].name + "?")) return;
   spots.splice(sel, 1); sel = 0; save(STORE_KEY, spots); save(SEL_KEY, sel); renderSpots(); refresh();
