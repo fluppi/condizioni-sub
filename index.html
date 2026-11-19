@@ -59,8 +59,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-of
 .vlabel{font-weight:600}
 .vlabel{font-family:"Barlow Condensed",sans-serif;font-size:1.2rem}
 .vlabel small{display:block;font-family:Barlow,system-ui,sans-serif;font-weight:400;color:var(--muted);font-size:.82rem;line-height:1.3}
-.facts{text-align:right;font-size:.9rem;color:var(--muted);line-height:1.35}
-.facts b{color:var(--ink);font-weight:600}
+.facts{font-size:.88rem;color:var(--muted);line-height:1.4;min-width:13rem}
+.facts div{display:grid;grid-template-columns:3.4rem 1fr;gap:6px}
+.facts span{color:var(--muted)} .facts b{color:var(--ink);font-weight:600}
+.wx{font-size:1.1rem;margin-left:2px}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:10px 0 12px;font-size:.9rem}
+.kv div{border-left:2px solid var(--line);padding-left:8px}
+.kv span{display:block;color:var(--muted);font-size:.78rem}
+.now{grid-template-columns:repeat(4,1fr)}
+@media (max-width:520px){.now{grid-template-columns:repeat(2,1fr)}}
 .detail{padding:0 0 16px}
 .detail ul{margin:8px 0 12px;padding-left:18px;color:var(--muted);font-size:.92rem}
 .chartbox{position:relative;height:220px}
@@ -75,7 +82,7 @@ footer{color:var(--muted);font-size:.8rem;margin:32px 0 16px}
 footer a{color:var(--sea)}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 @media (prefers-reduced-motion: no-preference){.gauge i{transition:height .5s ease}}
-@media (max-width:480px){.day>button{grid-template-columns:3.6rem 1fr}.facts{grid-column:2;text-align:left}}
+@media (max-width:600px){.day>button{grid-template-columns:3.6rem 1fr}.facts{grid-column:2}}
 </style>
 </head>
 <body>
@@ -111,7 +118,7 @@ footer a{color:var(--sea)}
   <div class="now" id="now"></div>
 
   <h2>Prossimi 7 giorni</h2>
-  <p class="sub">Fascia 8–18. Visibilità orizzontale stimata in metri; in verticale (guardando giù) di solito è circa il 40% in più. A destra onda, vento e pioggia delle 72 ore prima.</p>
+  <p class="sub">Fascia 8–18. Visibilità orizzontale stimata in metri; in verticale (guardando giù) di solito è circa il 40% in più. Tocca un giorno per swell, corrente, alba, luna e il dettaglio della stima.</p>
   <ul class="days" id="days"></ul>
 
   <footer>
@@ -179,7 +186,8 @@ function marineURL(s){
 }
 function weatherURL(s){
   return "https://api.open-meteo.com/v1/forecast?latitude=" + s.lat + "&longitude=" + s.lon +
-    "&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation,cloud_cover" +
+    "&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation,cloud_cover,temperature_2m" +
+    "&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum" +
     "&timezone=auto&past_days=3&forecast_days=7&wind_speed_unit=kn";
 }
 
@@ -261,6 +269,16 @@ function analyse(marine, wx, chl, base, rivers = []){
       prevHs: max(before36.map(i => pick(M("wave_height"), times[i]))),
       prevGust: max(before36.map(i => wh.wind_gusts_10m[i])),
       lake: !mh, base,
+      windDir: circMean(W((t, i) => wh.wind_direction_10m[i])),
+      waveDir: circMean(W(t => pick(M("wave_direction"), t))),
+      swellDir: circMean(W(t => pick(M("swell_wave_direction"), t))),
+      swellTp: mean(W(t => pick(M("swell_wave_period"), t))),
+      windWave: mean(W(t => pick(M("wind_wave_height"), t))),
+      curDir: circMean(W(t => pick(M("ocean_current_direction"), t))),
+      cloud: mean(W((t, i) => wh.cloud_cover ? wh.cloud_cover[i] : null)),
+      airNow: mean(W((t, i) => wh.temperature_2m ? wh.temperature_2m[i] : null)),
+      ...dailyFor(wx, date),
+      best: bestWindow(win, times, wh.wind_gusts_10m, t => pick(M("wave_height"), t)),
       riv: riv.map(r => {
         // massimo tra il giorno stesso e i due precedenti (il torbido arriva e resta)
         const vals = r.time.map((t, i) => (t <= date && t >= addDays(date, -2)) ? r.q[i] : null);
@@ -274,7 +292,62 @@ function analyse(marine, wx, chl, base, rivers = []){
   });
 }
 
+const CARD = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+const cardinal = deg => deg == null ? "n/d" : CARD[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+function circMean(a){
+  const v = a.filter(x => x != null); if (!v.length) return null;
+  const sx = v.reduce((p, d) => p + Math.sin(d * Math.PI / 180), 0), cx = v.reduce((p, d) => p + Math.cos(d * Math.PI / 180), 0);
+  return (Math.atan2(sx, cx) * 180 / Math.PI + 360) % 360;
+}
+// nomi dei venti: rosa dei venti per il mare, venti tipici del Garda per i laghi
+function windName(deg, lake){
+  if (deg == null) return "";
+  const i = Math.round(((deg % 360) + 360) % 360 / 45) % 8;
+  if (lake) return i === 0 || i === 7 || i === 1 ? "Pelèr" : (i >= 3 && i <= 5 ? "Ora" : "");
+  return ["Tramontana","Grecale","Levante","Scirocco","Ostro","Libeccio","Ponente","Maestrale"][i];
+}
+function weatherText(code){
+  if (code == null) return ["", ""];
+  if (code === 0) return ["☀️", "Sereno"];
+  if (code <= 2) return ["🌤️", "Poco nuvoloso"];
+  if (code === 3) return ["☁️", "Coperto"];
+  if (code <= 48) return ["🌫️", "Nebbia"];
+  if (code <= 57) return ["🌦️", "Pioviggine"];
+  if (code <= 67) return ["🌧️", "Pioggia"];
+  if (code <= 77) return ["❄️", "Neve"];
+  if (code <= 82) return ["🌦️", "Rovesci"];
+  return ["⛈️", "Temporale"];
+}
+// fase lunare (utile per notturne e plancton): 0 = nuova, 0,5 = piena
+function moon(dateIso){
+  const syn = 29.530588853, ref = Date.UTC(2000, 0, 6, 18, 14);
+  const ph = (((new Date(dateIso + "T21:00:00Z") - ref) / 864e5) % syn + syn) % syn / syn;
+  const illum = Math.round((1 - Math.cos(2 * Math.PI * ph)) / 2 * 100);
+  const icons = ["🌑","🌒","🌓","🌔","🌕","🌖","🌗","🌘"];
+  const names = ["Luna nuova","Crescente","Primo quarto","Gibbosa crescente","Luna piena","Gibbosa calante","Ultimo quarto","Calante"];
+  const k = Math.round(ph * 8) % 8;
+  return icons[k] + " " + names[k] + " (" + illum + "%)";
+}
+// finestra di 3 ore più tranquilla tra le 8 e le 18 (raffiche + onda)
+function bestWindow(win, times, gusts, wave){
+  let best = null;
+  for (let j = 0; j + 2 < win.length; j++){
+    const idx = win.slice(j, j + 3);
+    const score = mean(idx.map(i => gusts[i])) + 10 * (mean(idx.map(i => wave(times[i]))) || 0);
+    if (best == null || score < best.score) best = { score, from: +times[idx[0]].slice(11, 13) };
+  }
+  return best ? best.from + "–" + (best.from + 3) : null;
+}
+const hhmm = iso => iso ? iso.slice(11, 16) : "n/d";
+
 function addDays(iso, n){ const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
+function dailyFor(wx, date){
+  const dd = wx.daily; if (!dd) return {};
+  const i = dd.time.indexOf(date); if (i < 0) return {};
+  return { tMax: dd.temperature_2m_max[i], tMin: dd.temperature_2m_min[i], code: dd.weather_code[i],
+           rainDay: dd.precipitation_sum[i], sunrise: dd.sunrise[i], sunset: dd.sunset[i] };
+}
 
 function localToday(wx){
   // data corrente nel fuso del sito
@@ -298,7 +371,7 @@ function scoreVis(d){
     for (const [thr, k] of rules) if (val > thr) { f *= k; why.push(label(val) + " (−" + Math.round((1 - k) * 100) + "%)"); return; }
   };
   step(d.rain72, [[60, 0.4], [30, 0.6], [15, 0.75], [5, 0.9]], v => "Pioggia nelle 72 ore prima: " + v.toFixed(0) + " mm, torbido da fiumi e scarichi");
-  step(d.prevHs, [[3, 0.4], [2, 0.55], [1.2, 0.75], [0.8, 0.9]], v => "Mare formato nelle 36 ore prima (fino a " + v.toFixed(1) + " m): sedimento in sospensione");
+  step(d.prevHs, [[3, 0.4], [2, 0.55], [1.2, 0.75], [0.8, 0.9]], v => "Mare formato nelle 36 ore prima (fino a " + fmt(v, 1, " m") + "): sedimento in sospensione");
   if (d.lake) step(d.prevGust, [[30, 0.65], [22, 0.8], [16, 0.9]], v => "Vento forte nelle 36 ore prima (raffiche " + v.toFixed(0) + " kn): acqua rimescolata");
   for (const r of d.riv || []){
     if (r.ratio == null) continue;
@@ -310,8 +383,8 @@ function scoreVis(d){
     why.push("Fiume " + r.name + ": portata " + r.q.toFixed(0) + " m³/s, " + r.ratio.toFixed(1).replace(".", ",") +
              "× il normale (−" + Math.round((1 - k) * 100) + "%)");
   }
-  step(d.hs, [[1.2, 0.8], [0.6, 0.9]], v => "Onda nella giornata " + v.toFixed(1) + " m");
-  if (chlVis != null && chlVis < d.base) why.push("Clorofilla " + d.chl.toFixed(2) + " mg/m³: plancton, limita a circa " + Math.round(chlVis) + " m");
+  step(d.hs, [[1.2, 0.8], [0.6, 0.9]], v => "Onda nella giornata " + fmt(v, 1, " m"));
+  if (chlVis != null && chlVis < d.base) why.push("Clorofilla " + fmt(d.chl, 2) + " mg/m³: plancton, limita a circa " + Math.round(chlVis) + " m");
   const m = Math.max(1, start * f);
   const r = m / d.base;
   const lab = r >= 0.85 ? "Ottima" : r >= 0.65 ? "Buona" : r >= 0.45 ? "Discreta" : r >= 0.3 ? "Scarsa" : "Pessima";
@@ -333,7 +406,7 @@ function scoreSurf(d){
 }
 
 /* ---------- Render ---------- */
-const fmt = (v, n = 1, u = "") => v == null ? "n/d" : v.toFixed(n) + u;
+const fmt = (v, n = 1, u = "") => v == null ? "n/d" : v.toFixed(n).replace(".", ",") + u;
 const dayName = d => new Date(d + "T12:00").toLocaleDateString("it-IT", { weekday: "short" });
 const dayNum = d => new Date(d + "T12:00").toLocaleDateString("it-IT", { day: "numeric", month: "short" });
 
@@ -358,14 +431,22 @@ function render(data){
   // Ora: valori dell’ora corrente
   const nowKey = new Date(Date.now() + (wx.utc_offset_seconds || 0) * 1000).toISOString().slice(0, 13) + ":00";
   const wi = wx.hourly.time.indexOf(nowKey), mi = marine ? marine.hourly.time.indexOf(nowKey) : -1;
-  const chlText = chl && chl.value != null ? chl.value.toFixed(2) : "n/d";
+  const chlText = fmt(chl ? chl.value : null, 2);
+  const H = (arr, i, n, u) => fmt(i >= 0 && arr ? arr[i] : null, n, u);
+  const wdir = wi >= 0 ? wx.hourly.wind_direction_10m[wi] : null;
+  const windBox = box(H(wx.hourly.wind_speed_10m, wi, 0, " kn"),
+    "Vento adesso da " + cardinal(wdir) + (windName(wdir, !marine) ? " (" + windName(wdir, !marine) + ")" : "") +
+    ", raffiche " + H(wx.hourly.wind_gusts_10m, wi, 0, " kn"));
   $("now").innerHTML = !marine
-    ? box(fmt(wi >= 0 ? wx.hourly.wind_speed_10m[wi] : null, 0, " kn"), "Vento adesso") +
-      box(fmt(wi >= 0 ? wx.hourly.wind_gusts_10m[wi] : null, 0, " kn"), "Raffiche adesso") +
-      box(fmt(days[0] ? days[0].rain72 : null, 0, " mm"), "Pioggia ultime 72 h")
+    ? windBox +
+      box(H(wx.hourly.temperature_2m, wi, 0, "°"), "Aria adesso") +
+      box(fmt(days[0] ? days[0].rain72 : null, 0, " mm"), "Pioggia ultime 72 h") +
+      box(days[0] && days[0].best ? days[0].best : "n/d", "Ore più tranquille oggi")
     :
-    box(fmt(mi >= 0 ? marine.hourly.wave_height[mi] : null, 1, " m"), "Onda adesso") +
-    box(fmt(mi >= 0 ? marine.hourly.sea_surface_temperature[mi] : null, 1, "°"), "Acqua in superficie") +
+    box(H(marine.hourly.wave_height, mi, 1, " m"), "Onda adesso, " + H(marine.hourly.wave_period, mi, 0, " s") +
+        " da " + cardinal(mi >= 0 ? marine.hourly.wave_direction[mi] : null)) +
+    windBox +
+    box(H(marine.hourly.sea_surface_temperature, mi, 1, "°"), "Acqua in superficie (aria " + H(wx.hourly.temperature_2m, wi, 0, "°") + ")") +
     box(chlText, chl && chl.date ? "Clorofilla mg/m³ (" + chl.date.slice(0, 10) + ")" : "Clorofilla mg/m³");
 
   Object.values(charts).forEach(c => c.destroy()); charts = {};
@@ -375,19 +456,34 @@ function render(data){
     const cls = d.visRatio >= 0.65 ? "" : d.visRatio >= 0.45 ? "mid" : "low";
     li.innerHTML =
       '<button aria-expanded="false">' +
-        '<span class="dname">' + (k === 0 ? "Oggi" : dayName(d.date)) + "<small>" + dayNum(d.date) + "</small></span>" +
+        '<span class="dname">' + (k === 0 ? "Oggi" : dayName(d.date)) + '<span class="wx" title="' + weatherText(d.code)[1] + '">' + weatherText(d.code)[0] + "</span><small>" + dayNum(d.date) + "</small></span>" +
         '<span class="col"><span class="gauge ' + cls + '" aria-hidden="true"><i style="height:' + clamp(d.visM / 25 * 100, 6, 100) + '%"></i></span>' +
         '<span class="vlabel">' + d.visLo + "–" + d.visHi + " m <small>" + d.visLabel.toLowerCase() + ", in verticale ~" + d.visVert + " m<br>Superficie: " + d.surfLabel.toLowerCase() + "</small></span></span>" +
-        '<span class="facts">' + (d.lake ? "lago" : "<b>" + fmt(d.hs, 1, " m") + "</b> " + fmt(d.tp, 0, " s")) +
-          "<br>vento <b>" + fmt(d.wind, 0) + "</b>, raffiche " + fmt(d.gust, 0, " kn") +
-          "<br>pioggia 72 h " + fmt(d.rain72, 0, " mm") + "</span>" +
+        '<span class="facts">' +
+          (d.lake ? "" : "<div><span>Onda</span><span><b>" + fmt(d.hs, 1, " m") + "</b> · " + fmt(d.tp, 0, " s") + " · da " + cardinal(d.waveDir) + "</span></div>") +
+          "<div><span>Vento</span><span><b>" + fmt(d.wind, 0, " kn") + "</b>, raffiche " + fmt(d.gust, 0) + " · da " + cardinal(d.windDir) +
+            (windName(d.windDir, d.lake) ? " (" + windName(d.windDir, d.lake) + ")" : "") + "</span></div>" +
+          "<div><span>Aria</span><span>" + fmt(d.tMin, 0) + "–" + fmt(d.tMax, 0, "°") + (d.lake ? "" : " · acqua " + fmt(d.sst, 1, "°")) + "</span></div>" +
+          "<div><span>Pioggia</span><span>" + fmt(d.rainDay, 0, " mm") + " oggi · " + fmt(d.rain72, 0, " mm") + " nelle 72 h prima</span></div>" +
+        "</span>" +
       "</button>" +
-      '<div class="detail" hidden><ul>' + d.visWhy.map(w => "<li>" + w + "</li>").join("") +
+      '<div class="detail" hidden>' +
+        '<div class="kv">' +
+          kv("Ore più tranquille", d.best ? d.best : "n/d") +
+          kv("Cielo", (weatherText(d.code)[1] || "n/d") + " · nuvole " + fmt(d.cloud, 0, "%")) +
+          kv("Alba / tramonto", hhmm(d.sunrise) + " / " + hhmm(d.sunset)) +
+          kv("Luna", moon(d.date)) +
+          (d.lake ? "" :
+            kv("Swell (mare lungo)", fmt(d.swell, 1, " m") + " · " + fmt(d.swellTp, 0, " s") + " · da " + cardinal(d.swellDir)) +
+            kv("Onda da vento", fmt(d.windWave, 1, " m")) +
+            kv("Corrente", fmt(d.cur, 1, " km/h") + " verso " + cardinal(d.curDir)) +
+            kv("Acqua in superficie", fmt(d.sst, 1, "°"))) +
+          (d.riv || []).filter(r => r.q != null).map(r => kv("Fiume " + r.name, r.q.toFixed(0) + " m³/s" +
+            (r.ratio != null ? " (" + r.ratio.toFixed(1).replace(".", ",") + "× normale)" : ""))).join("") +
+        "</div>" +
+        "<ul>" + d.visWhy.map(w => "<li>" + w + "</li>").join("") +
         "<li>Visibilità tipica del sito in giornata buona: " + d.base + " m (modificabile)</li>" +
-        (d.riv || []).filter(r => r.q != null && !(r.ratio > 1.2)).map(r =>
-          "<li>Fiume " + r.name + ": " + r.q.toFixed(0) + " m³/s, portata nella norma</li>").join("") +
-        (d.lake ? "<li>Sui laghi il modello non fornisce onda e temperatura dell’acqua: la stima usa vento e piogge</li>"
-                : "<li>Swell " + fmt(d.swell, 1, " m") + ", corrente media " + fmt(d.cur, 1, " km/h") + ", acqua " + fmt(d.sst, 1, "°") + "</li>") +
+        (d.lake ? "<li>Sui laghi il modello non fornisce onda e temperatura dell’acqua: la stima usa vento, piogge e fiumi</li>" : "") +
       '</ul><div class="chartbox"><canvas aria-label="Andamento orario di onda, raffiche e pioggia"></canvas></div></div>';
     const btn = li.querySelector("button"), det = li.querySelector(".detail");
     btn.onclick = () => {
@@ -397,6 +493,7 @@ function render(data){
     $("days").appendChild(li);
   });
 }
+const kv = (k, v) => "<div><span>" + k + "</span>" + v + "</div>";
 const box = (v, l) => '<div><b class="num">' + v + "</b><span>" + l + "</span></div>";
 
 function drawChart(canvas, d, marine, wx){
@@ -448,6 +545,7 @@ async function refresh(force = false){
   const stillCurrent = () => my === reqId && spots[sel] === s;
   $("title").textContent = s.name;
   let c = readCache(s);
+  if (c && c.v !== 2) c = null;              // cache di una versione precedente
   const fresh = c && Date.now() - c.t < TTL;
 
   if (c) show(s, c);                         // mostra subito l’ultimo dato salvato
@@ -468,7 +566,7 @@ async function refresh(force = false){
     if (!stillCurrent()) return;
     if (marine && (!marine.hourly || marine.hourly.wave_height.every(v => v == null)))
       throw new Error("Nessun dato marino per questo punto: sposta le coordinate un po’ più al largo.");
-    c = { t: Date.now(), marine, wx, rivers, chl: c ? c.chl : null, chlT: c ? c.chlT : 0 };
+    c = { v: 2, t: Date.now(), marine, wx, rivers, chl: c ? c.chl : null, chlT: c ? c.chlT : 0 };
     writeCache(s, c);
     show(s, c);
   } catch (e) {
