@@ -53,43 +53,55 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-of
 .now div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
 .now .num{font-size:1.6rem;font-weight:600;line-height:1}
 .now span{display:block;color:var(--muted);font-size:.8rem;margin-top:4px}
-.days{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
-.day{border-bottom:1px solid var(--line)}
-.day>button{all:unset;display:grid;grid-template-columns:4.2rem 1fr auto;gap:12px;align-items:center;width:100%;padding:12px 0;cursor:pointer}
-.day>button:focus-visible{outline:2px solid var(--sea);outline-offset:2px}
-.dname{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:1.15rem;line-height:1.1}
-.dname small{display:block;font-weight:500;color:var(--muted);font-size:.85rem}
-/* Colonna d’acqua: più è piena, più si vede lontano */
-.col{display:flex;align-items:center;gap:10px}
-.gauge{flex:0 0 auto;width:20px;height:44px;border:1.5px solid var(--sea);border-radius:4px 4px 8px 8px;position:relative;overflow:hidden}
-.gauge i{position:absolute;left:0;right:0;bottom:0;background:var(--sea)}
-.gauge.mid i{background:var(--sand)} .gauge.low i{background:var(--coral)}
-.gauge.mid{border-color:var(--sand)} .gauge.low{border-color:var(--coral)}
-.vlabel{font-weight:600}
-.vlabel{font-family:"Barlow Condensed",sans-serif;font-size:1.2rem}
-.vlabel small{display:block;font-family:Barlow,system-ui,sans-serif;font-weight:400;color:var(--muted);font-size:.82rem;line-height:1.3}
-.facts{font-size:.88rem;color:var(--muted);line-height:1.4;min-width:13rem}
-.facts div{display:grid;grid-template-columns:3.4rem 1fr;gap:6px}
-.facts span{color:var(--muted)} .facts b{color:var(--ink);font-weight:600}
-.wx{font-size:1.1rem;margin-left:2px}
-.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:10px 0 12px;font-size:.9rem}
-.kv div{border-left:2px solid var(--line);padding-left:8px}
-.kv span{display:block;color:var(--muted);font-size:.78rem}
 .now{grid-template-columns:repeat(4,1fr)}
 @media (max-width:520px){.now{grid-template-columns:repeat(2,1fr)}}
-.detail{padding:0 0 16px}
-.prof{margin:4px 0 10px;font-size:.9rem}
-.prof-h{display:block;color:var(--muted);font-size:.78rem;margin-bottom:4px}
-.prof-body{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
-.prof-t{display:grid;grid-template-columns:auto auto;gap:2px 14px;min-width:9rem}
+/* Giorni: una scheda per giorno */
+.days{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.day{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.day>button{all:unset;box-sizing:border-box;display:grid;grid-template-columns:4.4rem 10rem 1fr 1rem;gap:14px;align-items:center;width:100%;padding:12px 14px;cursor:pointer}
+.day>button:hover{background:color-mix(in srgb,var(--sea) 7%,transparent)}
+.day>button:focus-visible{outline:2px solid var(--sea);outline-offset:-2px}
+.d-date b{display:block;font:700 1.25rem/1 "Barlow Condensed",sans-serif;text-transform:capitalize}
+.d-date small{color:var(--muted);font-size:.8rem}
+.d-date .wx{display:block;font-size:1.25rem;margin-top:3px;line-height:1}
+.vis-num{font:700 1.75rem/1 "Barlow Condensed",sans-serif}
+.vis-num small{font-size:1rem;font-weight:600;color:var(--muted)}
+.vis-bar{height:6px;border-radius:3px;background:var(--line);margin:6px 0 4px;overflow:hidden}
+.vis-bar i{display:block;height:100%;border-radius:3px;background:var(--sea)}
+.vis-bar i.mid{background:var(--sand)} .vis-bar i.low{background:var(--coral)}
+.vis-sub{font-size:.8rem;color:var(--muted);line-height:1.3}
+.d-chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{font-size:.82rem;line-height:1.3;padding:3px 9px;border-radius:999px;background:var(--bg);border:1px solid var(--line);white-space:nowrap}
+.chip b{font-weight:600}
+.chip.s-good{border-color:var(--sea);color:var(--sea);font-weight:600}
+.chip.s-mid{border-color:var(--sand);color:var(--sand);font-weight:600}
+.chip.s-bad{border-color:var(--coral);color:var(--coral);font-weight:600}
+.chip.warn{border-color:var(--sand)}
+.chev{color:var(--muted);font-size:1.3rem;transition:transform .2s;justify-self:end}
+.day>button[aria-expanded="true"] .chev{transform:rotate(90deg)}
+@media (max-width:640px){
+  .day>button{grid-template-columns:4rem 1fr 1rem;row-gap:10px}
+  .d-chips{grid-column:1 / -1;grid-row:2}
+}
+/* Dettaglio del giorno */
+.detail{padding:2px 14px 16px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:4px 28px}
+.detail .full{grid-column:1 / -1}
+@media (max-width:640px){.detail{grid-template-columns:1fr}}
+.sec h3{font:600 .7rem/1 Barlow,system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0;font-size:.9rem}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+.why{margin:0;padding-left:18px;color:var(--muted);font-size:.88rem}
+.why li{margin:3px 0}
+.prof-body{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;font-size:.9rem}
+.prof-t{display:grid;grid-template-columns:auto auto;gap:3px 14px;min-width:8rem}
 .prof-t div{display:contents}
 .prof-t span{color:var(--muted)}
-.prof svg{width:200px;max-width:100%;height:auto;overflow:visible}
+.prof-note{font-size:.8rem;color:var(--muted);margin-top:6px}
+.prof svg{width:210px;max-width:100%;height:auto;overflow:visible}
 .prof svg text{font:10px Barlow,system-ui,sans-serif;fill:var(--muted)}
 .prof svg .g{stroke:var(--line);stroke-width:1}
 .prof svg .tc{stroke:var(--sand);stroke-width:1;stroke-dasharray:3 3}
 .prof svg .p{fill:none;stroke:var(--sea);stroke-width:2.2;stroke-linejoin:round}
-.detail ul{margin:8px 0 12px;padding-left:18px;color:var(--muted);font-size:.92rem}
 .chartbox{position:relative;height:220px}
 .add{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:8px}
 .add input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
@@ -100,8 +112,6 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-of
 .msg{color:var(--coral);font-size:.92rem}
 footer{color:var(--muted);font-size:.8rem;margin:32px 0 16px}
 footer a{color:var(--sea)}
-@media (prefers-reduced-motion: no-preference){.gauge i{transition:height .5s ease}}
-@media (max-width:600px){.day>button{grid-template-columns:3.6rem 1fr}.facts{grid-column:2}}
 </style>
 </head>
 <body>
@@ -136,8 +146,8 @@ footer a{color:var(--sea)}
 
   <div class="now" id="now"></div>
 
-  <h2>Prossimi 7 giorni</h2>
-  <p class="sub">Fascia 8–18. Visibilità orizzontale stimata in metri; in verticale (guardando giù) di solito è circa il 40% in più. Tocca un giorno per temperature in profondità, termoclino, swell, corrente, alba, luna e il dettaglio della stima.</p>
+  <h2>Prossimi giorni</h2>
+  <p class="sub">Fascia 8–18, visibilità orizzontale stimata. Tocca un giorno per mare, temperature in profondità, meteo e il perché della stima.</p>
   <ul class="days" id="days"></ul>
 
   <footer>
@@ -504,44 +514,65 @@ function render(data){
   $("days").innerHTML = "";
   days.forEach((d, k) => {
     const li = document.createElement("li"); li.className = "day";
-    const cls = d.visRatio >= 0.65 ? "" : d.visRatio >= 0.45 ? "mid" : "low";
+    const lvl = d.visRatio >= 0.65 ? "" : d.visRatio >= 0.45 ? "mid" : "low";
+    const surfCls = d.surf >= 3.5 ? "s-good" : d.surf >= 2.5 ? "s-mid" : "s-bad";
+    const wn = windName(d.windDir, d.lake);
+    const chips = [
+      '<span class="chip ' + surfCls + '">Superficie: ' + d.surfLabel.toLowerCase() + "</span>",
+      d.lake ? "" : '<span class="chip">🌊 <b>' + fmt(d.hs, 1, " m") + "</b> · " + fmt(d.tp, 0, " s") + " · " + cardinal(d.waveDir) + "</span>",
+      '<span class="chip">💨 <b>' + fmt(d.wind, 0, " kn") + "</b> raff. " + fmt(d.gust, 0) + " · " + cardinal(d.windDir) + (wn ? " " + wn : "") + "</span>",
+      d.lake
+        ? '<span class="chip">🌡 aria ' + fmt(d.tMin, 0) + "–" + fmt(d.tMax, 0, "°") + "</span>"
+        : '<span class="chip">🌡 acqua <b>' + fmt(d.sst, 1, "°") + "</b>" + (tAt(d, 30) != null ? " · 30 m " + fmt(tAt(d, 30), 1, "°") : "") + "</span>",
+      (d.rain72 > 5 || d.rainDay > 1) ? '<span class="chip warn">🌧 ' + fmt(d.rainDay, 0, " mm") + " oggi · " + fmt(d.rain72, 0) + " nelle 72 h</span>" : ""
+    ].join("");
+
+    const sea = d.lake ? "" :
+      '<section class="sec"><h3>Mare</h3><dl class="kv">' +
+        kv("Onda", fmt(d.hs, 1, " m") + " · periodo " + fmt(d.tp, 0, " s") + " · da " + cardinal(d.waveDir)) +
+        kv("Swell", fmt(d.swell, 1, " m") + " · " + fmt(d.swellTp, 0, " s") + " · da " + cardinal(d.swellDir)) +
+        kv("Onda da vento", fmt(d.windWave, 1, " m")) +
+        kv("Corrente", fmt(d.cur, 1, " km/h") + " verso " + cardinal(d.curDir)) +
+      "</dl></section>";
+    const water = '<section class="sec prof"><h3>Acqua in profondità</h3>' +
+      (d.lake
+        ? '<dl class="kv">' + kv("Indicativo", "sotto i 40 m circa 8–9° tutto l’anno") + "</dl>"
+        : profileBlock(d) +
+          (d.deep && data.deepInfo ? '<div class="prof-note">Termoclino: ' + (d.deep.thermocline ? "circa " + d.deep.thermocline + " m" : "assente, acqua mescolata") +
+            " · modello Copernicus del " + new Date(data.deepInfo.updated).toLocaleDateString("it-IT", { day: "numeric", month: "short" }) +
+            ", fondale del punto " + (data.deepInfo.maxDepth ? "~" + data.deepInfo.maxDepth + " m" : "oltre 100 m") + "</div>" : "")) +
+      "</section>";
+    const meteo = '<section class="sec"><h3>Meteo</h3><dl class="kv">' +
+        kv("Ore più tranquille", d.best || "n/d") +
+        kv("Vento", fmt(d.wind, 0, " kn") + ", raffiche " + fmt(d.gust, 0, " kn") + " · da " + cardinal(d.windDir) + (wn ? " (" + wn + ")" : "")) +
+        kv("Cielo", (weatherText(d.code)[1] || "n/d") + " · nuvole " + fmt(d.cloud, 0, "%")) +
+        kv("Aria", fmt(d.tMin, 0) + "–" + fmt(d.tMax, 0, "°")) +
+        kv("Pioggia", fmt(d.rainDay, 0, " mm") + " oggi · " + fmt(d.rain72, 0, " mm") + " nelle 72 h prima") +
+        kv("Alba / tramonto", hhmm(d.sunrise) + " / " + hhmm(d.sunset)) +
+        kv("Luna", moon(d.date)) +
+        (d.riv || []).filter(r => r.q != null).map(r => kv("Fiume " + r.name, r.q.toFixed(0) + " m³/s" +
+          (r.ratio != null ? " (" + r.ratio.toFixed(1).replace(".", ",") + "× normale)" : ""))).join("") +
+      "</dl></section>";
+    const why = '<section class="sec"><h3>Perché questa visibilità</h3><ul class="why">' +
+        d.visWhy.map(w => "<li>" + w + "</li>").join("") +
+        "<li>Base del sito in giornata buona: " + d.base + " m (modificabile)</li>" +
+        (d.lake ? "<li>Sui laghi niente dati di onda: la stima usa vento, piogge e fiumi</li>" : "") +
+      "</ul></section>";
+
     li.innerHTML =
       '<button aria-expanded="false">' +
-        '<span class="dname">' + (k === 0 ? "Oggi" : dayName(d.date)) + '<span class="wx" title="' + weatherText(d.code)[1] + '">' + weatherText(d.code)[0] + "</span><small>" + dayNum(d.date) + "</small></span>" +
-        '<span class="col"><span class="gauge ' + cls + '" aria-hidden="true"><i style="height:' + clamp(d.visM / 25 * 100, 6, 100) + '%"></i></span>' +
-        '<span class="vlabel">' + d.visLo + "–" + d.visHi + " m <small>" + d.visLabel.toLowerCase() + ", in verticale ~" + d.visVert + " m<br>Superficie: " + d.surfLabel.toLowerCase() + "</small></span></span>" +
-        '<span class="facts">' +
-          (d.lake ? "" : "<div><span>Onda</span><span><b>" + fmt(d.hs, 1, " m") + "</b> · " + fmt(d.tp, 0, " s") + " · da " + cardinal(d.waveDir) + "</span></div>") +
-          "<div><span>Vento</span><span><b>" + fmt(d.wind, 0, " kn") + "</b>, raffiche " + fmt(d.gust, 0) + " · da " + cardinal(d.windDir) +
-            (windName(d.windDir, d.lake) ? " (" + windName(d.windDir, d.lake) + ")" : "") + "</span></div>" +
-          "<div><span>Aria</span><span>" + fmt(d.tMin, 0) + "–" + fmt(d.tMax, 0, "°") + (d.lake ? "" : " · acqua " + fmt(d.sst, 1, "°") + (tAt(d, 20) != null ? ", a 20 m " + fmt(tAt(d, 20), 1, "°") : "")) + "</span></div>" +
-          "<div><span>Pioggia</span><span>" + fmt(d.rainDay, 0, " mm") + " oggi · " + fmt(d.rain72, 0, " mm") + " nelle 72 h prima</span></div>" +
-        "</span>" +
+        '<span class="d-date"><b>' + (k === 0 ? "Oggi" : dayName(d.date)) + "</b><small>" + dayNum(d.date) + "</small>" +
+          '<span class="wx" title="' + weatherText(d.code)[1] + '">' + weatherText(d.code)[0] + "</span></span>" +
+        '<span class="d-vis"><span class="vis-num">' + d.visLo + "–" + d.visHi + " <small>m</small></span>" +
+          '<span class="vis-bar"><i class="' + lvl + '" style="width:' + clamp(d.visM / 25 * 100, 6, 100) + '%"></i></span>' +
+          '<span class="vis-sub">Visibilità ' + d.visLabel.toLowerCase() + " · verticale ~" + d.visVert + " m</span></span>" +
+        '<span class="d-chips">' + chips + "</span>" +
+        '<span class="chev" aria-hidden="true">›</span>' +
       "</button>" +
       '<div class="detail" hidden>' +
-        '<div class="kv">' +
-          kv("Ore più tranquille", d.best ? d.best : "n/d") +
-          kv("Cielo", (weatherText(d.code)[1] || "n/d") + " · nuvole " + fmt(d.cloud, 0, "%")) +
-          kv("Alba / tramonto", hhmm(d.sunrise) + " / " + hhmm(d.sunset)) +
-          kv("Luna", moon(d.date)) +
-          (d.lake ? "" :
-            kv("Swell (mare lungo)", fmt(d.swell, 1, " m") + " · " + fmt(d.swellTp, 0, " s") + " · da " + cardinal(d.swellDir)) +
-            kv("Onda da vento", fmt(d.windWave, 1, " m")) +
-            kv("Corrente", fmt(d.cur, 1, " km/h") + " verso " + cardinal(d.curDir)) +
-            kv("Acqua in superficie", fmt(d.sst, 1, "°")) +
-            kv("Termoclino", d.deep ? (d.deep.thermocline ? "circa " + d.deep.thermocline + " m" : "non marcato (acqua mescolata)") : "n/d")) +
-          (d.lake ? kv("Acqua in profondità", "indicativo: sotto i 40 m circa 8–9° tutto l’anno") : "") +
-          (d.riv || []).filter(r => r.q != null).map(r => kv("Fiume " + r.name, r.q.toFixed(0) + " m³/s" +
-            (r.ratio != null ? " (" + r.ratio.toFixed(1).replace(".", ",") + "× normale)" : ""))).join("") +
-        "</div>" +
-        (d.lake ? "" : profileBlock(d)) +
-        "<ul>" + d.visWhy.map(w => "<li>" + w + "</li>").join("") +
-        "<li>Visibilità tipica del sito in giornata buona: " + d.base + " m (modificabile)</li>" +
-        (d.lake ? "<li>Sui laghi il modello non fornisce onda e temperatura dell’acqua: la stima usa vento, piogge e fiumi</li>" : "") +
-        (d.deep && data.deepInfo ? "<li>Temperature in profondità: modello Copernicus del " +
-          new Date(data.deepInfo.updated).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) +
-          ", punto del modello con fondale " + (data.deepInfo.maxDepth ? "di circa " + data.deepInfo.maxDepth + " m" : "oltre i 100 m") + "</li>" : "") +
-      '</ul><div class="chartbox"><canvas aria-label="Andamento orario di onda, raffiche e pioggia"></canvas></div></div>';
+        (d.lake ? meteo + water : sea + water + meteo) + why +
+        '<section class="sec full"><h3>Andamento orario</h3><div class="chartbox"><canvas aria-label="Andamento orario di onda, raffiche e pioggia"></canvas></div></section>' +
+      "</div>";
     const btn = li.querySelector("button"), det = li.querySelector(".detail");
     btn.onclick = () => {
       const open = det.hidden; det.hidden = !open; btn.setAttribute("aria-expanded", open);
@@ -553,7 +584,7 @@ function render(data){
 // Profilo di temperatura: tabella compatta + grafico temperatura/profondità
 const PROFILE_Z = [5, 10, 20, 30, 40, 50, 60, 80, 100];
 function profileBlock(d){
-  if (!d.deep) return '<div class="prof"><span class="prof-h">Acqua in profondità</span>in attesa del primo aggiornamento</div>';
+  if (!d.deep) return '<div class="prof-note">In attesa del primo aggiornamento dei dati Copernicus.</div>';
   const pts = d.deep.profile.filter(p => p[1] != null);
   const rows = PROFILE_Z.map(z => [z, tAt(d, z)]).filter(r => r[1] != null);
   if (!rows.length) return "";
@@ -565,25 +596,25 @@ function profileBlock(d){
   });
   const table = groups.map(g => "<div><span>" + (g.from === g.to ? g.from + " m" : g.from + "–" + g.to + " m") +
     "</span><b>" + fmt(g.t, 1, "°") + "</b></div>").join("");
-  // grafico SVG: temperatura in orizzontale, profondità in verticale verso il basso
+  // grafico SVG: temperatura in orizzontale, profondità verso il basso
   const zMax = Math.max(...pts.map(p => p[0])), ts = pts.map(p => p[1]);
   let tMin = Math.min(...ts), tMax2 = Math.max(...ts);
   if (tMax2 - tMin < 2) { const m = (tMax2 + tMin) / 2; tMin = m - 1; tMax2 = m + 1; }
-  const W = 200, H = 150, L = 34, T = 14, X = t => L + (t - tMin) / (tMax2 - tMin) * (W - L - 10), Y = z => T + z / zMax * (H - T - 8);
+  const W = 210, H = 150, L = 34, T = 14, X = t => L + (t - tMin) / (tMax2 - tMin) * (W - L - 10), Y = z => T + z / zMax * (H - T - 8);
   const path = pts.map((p, i) => (i ? "L" : "M") + X(p[1]).toFixed(1) + " " + Y(p[0]).toFixed(1)).join(" ");
   const yTicks = [0, 20, 40, 60, 80, 100].filter(z => z <= zMax).map(z =>
     '<line x1="' + L + '" x2="' + (W - 10) + '" y1="' + Y(z) + '" y2="' + Y(z) + '" class="g"/>' +
-    '<text x="' + (L - 5) + '" y="' + (Y(z) + 3.5) + '" text-anchor="end">' + z + "</text>").join("");
+    '<text x="' + (L - 5) + '" y="' + (Y(z) + 3.5) + '" text-anchor="end">' + z + " m</text>").join("");
   const tc = d.deep.thermocline && d.deep.thermocline <= zMax
     ? '<line x1="' + L + '" x2="' + (W - 10) + '" y1="' + Y(d.deep.thermocline) + '" y2="' + Y(d.deep.thermocline) + '" class="tc"/>' : "";
   const svg = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Profilo di temperatura fino a ' + zMax + ' m">' +
     yTicks + tc +
     '<text x="' + L + '" y="9">' + fmt(tMin, 0, "°") + '</text><text x="' + (W - 10) + '" y="9" text-anchor="end">' + fmt(tMax2, 0, "°") + "</text>" +
     '<path d="' + path + '" class="p"/></svg>';
-  return '<div class="prof"><span class="prof-h">Acqua in profondità</span><div class="prof-body"><div class="prof-t">' + table + "</div>" + svg + "</div></div>";
+  return '<div class="prof-body"><div class="prof-t">' + table + "</div>" + svg + "</div>";
 }
 const tAt = (d, z) => { const p = d.deep && d.deep.profile.find(x => x[0] === z); return p ? p[1] : null; };
-const kv = (k, v) => "<div><span>" + k + "</span>" + v + "</div>";
+const kv = (k, v) => "<dt>" + k + "</dt><dd>" + v + "</dd>";
 const box = (v, l) => '<div><b class="num">' + v + "</b><span>" + l + "</span></div>";
 
 function drawChart(canvas, d, marine, wx){
