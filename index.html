@@ -85,6 +85,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-of
 }
 /* Dettaglio del giorno */
 .detail{padding:2px 14px 16px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:4px 28px}
+.detail[hidden]{display:none}   /* senza questa riga display:grid annulla l’attributo hidden */
 .detail .full{grid-column:1 / -1}
 @media (max-width:640px){.detail{grid-template-columns:1fr}}
 .sec h3{font:600 .7rem/1 Barlow,system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px}
