@@ -118,12 +118,13 @@ footer a{color:var(--sea)}
   <div class="now" id="now"></div>
 
   <h2>Prossimi 7 giorni</h2>
-  <p class="sub">Fascia 8–18. Visibilità orizzontale stimata in metri; in verticale (guardando giù) di solito è circa il 40% in più. Tocca un giorno per swell, corrente, alba, luna e il dettaglio della stima.</p>
+  <p class="sub">Fascia 8–18. Visibilità orizzontale stimata in metri; in verticale (guardando giù) di solito è circa il 40% in più. Tocca un giorno per temperature in profondità, termoclino, swell, corrente, alba, luna e il dettaglio della stima.</p>
   <ul class="days" id="days"></ul>
 
   <footer>
     Dati: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> (modelli marini, meteo e portate fluviali GloFAS),
     clorofilla da <a href="https://coastwatch.pfeg.noaa.gov/erddap/" rel="noopener">NOAA ERDDAP</a> quando disponibile.
+    Temperature in profondità dal modello <a href="https://data.marine.copernicus.eu/product/MEDSEA_ANALYSISFORECAST_PHY_006_013/description" rel="noopener">Copernicus Marine Mediterraneo</a>, aggiornate ogni giorno.
     Per torbidità e clorofilla dettagliate: <a href="https://data.marine.copernicus.eu/viewer/expert" rel="noopener">Copernicus MyOcean</a>.
     La visibilità è una stima euristica, non una misura: verifica sempre con chi si è immerso di recente.
   </footer>
@@ -222,6 +223,19 @@ async function getRivers(s){
       .then(j => ({ ...r, time: j.daily.time, q: j.daily.river_discharge }))
       .catch(() => null)));
   return res.filter(Boolean);
+}
+
+// Profili di temperatura in profondità: file aggiornato ogni giorno dalla GitHub Action (Copernicus Marine)
+const TEMP_URL = "https://raw.githubusercontent.com/fluppi/condizioni-sub/main/data/temperatura.json";
+let tempData = null, tempT = 0;
+async function getTemps(){
+  if (tempData && Date.now() - tempT < 3600e3) return false;
+  try {
+    const j = await getJSON(TEMP_URL + "?h=" + Math.floor(Date.now() / 3600e3), 8000);
+    const changed = !tempData || j.updated !== tempData.updated;
+    tempData = j; tempT = Date.now();
+    return changed;
+  } catch { return false; }
 }
 
 /* ---------- Analisi ---------- */
@@ -463,7 +477,7 @@ function render(data){
           (d.lake ? "" : "<div><span>Onda</span><span><b>" + fmt(d.hs, 1, " m") + "</b> · " + fmt(d.tp, 0, " s") + " · da " + cardinal(d.waveDir) + "</span></div>") +
           "<div><span>Vento</span><span><b>" + fmt(d.wind, 0, " kn") + "</b>, raffiche " + fmt(d.gust, 0) + " · da " + cardinal(d.windDir) +
             (windName(d.windDir, d.lake) ? " (" + windName(d.windDir, d.lake) + ")" : "") + "</span></div>" +
-          "<div><span>Aria</span><span>" + fmt(d.tMin, 0) + "–" + fmt(d.tMax, 0, "°") + (d.lake ? "" : " · acqua " + fmt(d.sst, 1, "°")) + "</span></div>" +
+          "<div><span>Aria</span><span>" + fmt(d.tMin, 0) + "–" + fmt(d.tMax, 0, "°") + (d.lake ? "" : " · acqua " + fmt(d.sst, 1, "°") + (tAt(d, 20) != null ? ", a 20 m " + fmt(tAt(d, 20), 1, "°") : "")) + "</span></div>" +
           "<div><span>Pioggia</span><span>" + fmt(d.rainDay, 0, " mm") + " oggi · " + fmt(d.rain72, 0, " mm") + " nelle 72 h prima</span></div>" +
         "</span>" +
       "</button>" +
@@ -477,13 +491,22 @@ function render(data){
             kv("Swell (mare lungo)", fmt(d.swell, 1, " m") + " · " + fmt(d.swellTp, 0, " s") + " · da " + cardinal(d.swellDir)) +
             kv("Onda da vento", fmt(d.windWave, 1, " m")) +
             kv("Corrente", fmt(d.cur, 1, " km/h") + " verso " + cardinal(d.curDir)) +
-            kv("Acqua in superficie", fmt(d.sst, 1, "°"))) +
+            kv("Acqua in superficie", fmt(d.sst, 1, "°")) +
+            (d.deep
+              ? kv("Acqua in profondità", [5, 10, 20, 30, 40].filter(z => tAt(d, z) != null)
+                  .map(z => z + " m <b>" + fmt(tAt(d, z), 1, "°") + "</b>").join(" · ")) +
+                kv("Termoclino", d.deep.thermocline ? "circa " + d.deep.thermocline + " m" : "non marcato (acqua mescolata)")
+              : kv("Acqua in profondità", "in attesa del primo aggiornamento"))) +
+          (d.lake ? kv("Acqua in profondità", "indicativo: sotto i 40 m circa 8–9° tutto l’anno") : "") +
           (d.riv || []).filter(r => r.q != null).map(r => kv("Fiume " + r.name, r.q.toFixed(0) + " m³/s" +
             (r.ratio != null ? " (" + r.ratio.toFixed(1).replace(".", ",") + "× normale)" : ""))).join("") +
         "</div>" +
         "<ul>" + d.visWhy.map(w => "<li>" + w + "</li>").join("") +
         "<li>Visibilità tipica del sito in giornata buona: " + d.base + " m (modificabile)</li>" +
         (d.lake ? "<li>Sui laghi il modello non fornisce onda e temperatura dell’acqua: la stima usa vento, piogge e fiumi</li>" : "") +
+        (d.deep && data.deepInfo ? "<li>Temperature in profondità: modello Copernicus del " +
+          new Date(data.deepInfo.updated).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) +
+          ", punto del modello con fondale " + (data.deepInfo.maxDepth ? "di circa " + data.deepInfo.maxDepth + " m" : "oltre i 70 m") + "</li>" : "") +
       '</ul><div class="chartbox"><canvas aria-label="Andamento orario di onda, raffiche e pioggia"></canvas></div></div>';
     const btn = li.querySelector("button"), det = li.querySelector(".detail");
     btn.onclick = () => {
@@ -493,6 +516,7 @@ function render(data){
     $("days").appendChild(li);
   });
 }
+const tAt = (d, z) => { const p = d.deep && d.deep.profile.find(x => x[0] === z); return p ? p[1] : null; };
 const kv = (k, v) => "<div><span>" + k + "</span>" + v + "</div>";
 const box = (v, l) => '<div><b class="num">' + v + "</b><span>" + l + "</span></div>";
 
@@ -535,7 +559,11 @@ function readCache(s){
 function writeCache(s, c){ memCache.set(cacheKey(s), c); save(cacheKey(s), c); }
 
 function show(s, c){
-  lastData = { t: c.t, marine: c.marine, wx: c.wx, chl: c.chl, days: analyse(c.marine, c.wx, c.chl, s.base, c.rivers || []) };
+  const days = analyse(c.marine, c.wx, c.chl, s.base, c.rivers || []);
+  const ts = tempData && tempData.spots ? tempData.spots[s.name] : null;
+  days.forEach(d => { d.deep = ts ? ts.days.find(x => x.date === d.date) || null : null; });
+  lastData = { t: c.t, marine: c.marine, wx: c.wx, chl: c.chl, days,
+               deepInfo: ts ? { updated: tempData.updated, maxDepth: ts.maxDepth } : null };
   render(lastData);
 }
 
@@ -543,6 +571,7 @@ async function refresh(force = false){
   const my = ++reqId;
   const s = spots[sel];
   const stillCurrent = () => my === reqId && spots[sel] === s;
+  getTemps().then(changed => { const cc = readCache(s); if (changed && stillCurrent() && cc && cc.v === 2) show(s, cc); });
   $("title").textContent = s.name;
   let c = readCache(s);
   if (c && c.v !== 2) c = null;              // cache di una versione precedente
