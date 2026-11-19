@@ -1,4 +1,4 @@
-"""Scarica da Copernicus Marine i profili di temperatura (0-60 m) per i siti di mare
+"""Scarica da Copernicus Marine i profili di temperatura (0-100 m) per i siti di mare
 e li salva in data/temperatura.json, letto dalla web app.
 Credenziali dalle variabili d'ambiente (GitHub Secrets):
 COPERNICUSMARINE_SERVICE_USERNAME / COPERNICUSMARINE_SERVICE_PASSWORD
@@ -17,8 +17,9 @@ SPOTS = [
     ("Santa Margherita Ligure", 44.328, 9.218),
 ]
 DATASET = "cmems_mod_med_phy-tem_anfc_4.2km_P1D-m"   # Mediterraneo, temperatura giornaliera 3D
-DEPTHS = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60]
-BOX = 0.08                                           # gradi attorno al sito per trovare un punto di mare
+DEPTHS = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100]
+MAX_DEPTH = 120                                      # metri scaricati dal modello
+BOX = 0.12                                           # gradi attorno al sito (~13 km) per trovare un punto di mare profondo
 
 user = os.environ["COPERNICUSMARINE_SERVICE_USERNAME"]
 pw = os.environ["COPERNICUSMARINE_SERVICE_PASSWORD"]
@@ -38,7 +39,7 @@ for name, lat, lon in SPOTS:
             dataset_id=DATASET, username=user, password=pw, variables=["thetao"],
             minimum_longitude=lon - BOX, maximum_longitude=lon + BOX,
             minimum_latitude=lat - BOX, maximum_latitude=lat + BOX,
-            minimum_depth=0, maximum_depth=80,
+            minimum_depth=0, maximum_depth=MAX_DEPTH,
             start_datetime=start, end_datetime=end,
         )
         t = ds["thetao"].transpose("time", "depth", "latitude", "longitude").load()
@@ -48,7 +49,7 @@ for name, lat, lon in SPOTS:
 
     z = t["depth"].values
     first = t.isel(time=0).values            # (depth, lat, lon)
-    best = None
+    cells = []
     for i, la in enumerate(t["latitude"].values):
         for j, lo in enumerate(t["longitude"].values):
             col = first[:, i, j]
@@ -57,13 +58,14 @@ for name, lat, lon in SPOTS:
                 continue                     # cella di terra
             max_d = float(z[valid[-1]])
             dist = (la - lat) ** 2 + ((lo - lon) * np.cos(np.radians(lat))) ** 2
-            score = dist + (0 if max_d >= 40 else 1)   # preferisce punti con almeno 40 m d'acqua
-            if best is None or score < best[0]:
-                best = (score, i, j, max_d, float(la), float(lo))
-    if best is None:
+            cells.append((dist, max_d, i, j, float(la), float(lo)))
+    if not cells:
         print(f"{name}: nessun punto di mare nel riquadro")
         continue
-    _, i, j, max_d, la, lo = best
+    # il punto più vicino con almeno 100 m d'acqua; se non c'è, il più profondo (a parità, il più vicino)
+    deep = [c for c in cells if c[1] >= 100]
+    best = min(deep) if deep else min(cells, key=lambda c: (-c[1], c[0]))
+    _, max_d, i, j, la, lo = best
 
     days = []
     for k, tm in enumerate(t["time"].values):
@@ -83,7 +85,7 @@ for name, lat, lon in SPOTS:
             "profile": prof,
             "thermocline": thermo,
         })
-    # fondale del punto modello: None se più profondo dell’intervallo scaricato (80 m)
+    # fondale del punto modello: None se più profondo dell’intervallo scaricato
     out["spots"][name] = {"lat": la, "lon": lo, "maxDepth": round(max_d) if max_d < z[-1] else None, "days": days}
     print(f"{name}: {len(days)} giorni, punto {la:.3f},{lo:.3f}, fondale modello ~{max_d:.0f} m")
 

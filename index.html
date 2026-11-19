@@ -78,6 +78,17 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-of
 .now{grid-template-columns:repeat(4,1fr)}
 @media (max-width:520px){.now{grid-template-columns:repeat(2,1fr)}}
 .detail{padding:0 0 16px}
+.prof{margin:4px 0 10px;font-size:.9rem}
+.prof-h{display:block;color:var(--muted);font-size:.78rem;margin-bottom:4px}
+.prof-body{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.prof-t{display:grid;grid-template-columns:auto auto;gap:2px 14px;min-width:9rem}
+.prof-t div{display:contents}
+.prof-t span{color:var(--muted)}
+.prof svg{width:200px;max-width:100%;height:auto;overflow:visible}
+.prof svg text{font:10px Barlow,system-ui,sans-serif;fill:var(--muted)}
+.prof svg .g{stroke:var(--line);stroke-width:1}
+.prof svg .tc{stroke:var(--sand);stroke-width:1;stroke-dasharray:3 3}
+.prof svg .p{fill:none;stroke:var(--sea);stroke-width:2.2;stroke-linejoin:round}
 .detail ul{margin:8px 0 12px;padding-left:18px;color:var(--muted);font-size:.92rem}
 .chartbox{position:relative;height:220px}
 .add{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:8px}
@@ -518,21 +529,18 @@ function render(data){
             kv("Onda da vento", fmt(d.windWave, 1, " m")) +
             kv("Corrente", fmt(d.cur, 1, " km/h") + " verso " + cardinal(d.curDir)) +
             kv("Acqua in superficie", fmt(d.sst, 1, "°")) +
-            (d.deep
-              ? kv("Acqua in profondità", [5, 10, 20, 30, 40].filter(z => tAt(d, z) != null)
-                  .map(z => z + " m <b>" + fmt(tAt(d, z), 1, "°") + "</b>").join(" · ")) +
-                kv("Termoclino", d.deep.thermocline ? "circa " + d.deep.thermocline + " m" : "non marcato (acqua mescolata)")
-              : kv("Acqua in profondità", "in attesa del primo aggiornamento"))) +
+            kv("Termoclino", d.deep ? (d.deep.thermocline ? "circa " + d.deep.thermocline + " m" : "non marcato (acqua mescolata)") : "n/d")) +
           (d.lake ? kv("Acqua in profondità", "indicativo: sotto i 40 m circa 8–9° tutto l’anno") : "") +
           (d.riv || []).filter(r => r.q != null).map(r => kv("Fiume " + r.name, r.q.toFixed(0) + " m³/s" +
             (r.ratio != null ? " (" + r.ratio.toFixed(1).replace(".", ",") + "× normale)" : ""))).join("") +
         "</div>" +
+        (d.lake ? "" : profileBlock(d)) +
         "<ul>" + d.visWhy.map(w => "<li>" + w + "</li>").join("") +
         "<li>Visibilità tipica del sito in giornata buona: " + d.base + " m (modificabile)</li>" +
         (d.lake ? "<li>Sui laghi il modello non fornisce onda e temperatura dell’acqua: la stima usa vento, piogge e fiumi</li>" : "") +
         (d.deep && data.deepInfo ? "<li>Temperature in profondità: modello Copernicus del " +
           new Date(data.deepInfo.updated).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) +
-          ", punto del modello con fondale " + (data.deepInfo.maxDepth ? "di circa " + data.deepInfo.maxDepth + " m" : "oltre i 70 m") + "</li>" : "") +
+          ", punto del modello con fondale " + (data.deepInfo.maxDepth ? "di circa " + data.deepInfo.maxDepth + " m" : "oltre i 100 m") + "</li>" : "") +
       '</ul><div class="chartbox"><canvas aria-label="Andamento orario di onda, raffiche e pioggia"></canvas></div></div>';
     const btn = li.querySelector("button"), det = li.querySelector(".detail");
     btn.onclick = () => {
@@ -541,6 +549,38 @@ function render(data){
     };
     $("days").appendChild(li);
   });
+}
+// Profilo di temperatura: tabella compatta + grafico temperatura/profondità
+const PROFILE_Z = [5, 10, 20, 30, 40, 50, 60, 80, 100];
+function profileBlock(d){
+  if (!d.deep) return '<div class="prof"><span class="prof-h">Acqua in profondità</span>in attesa del primo aggiornamento</div>';
+  const pts = d.deep.profile.filter(p => p[1] != null);
+  const rows = PROFILE_Z.map(z => [z, tAt(d, z)]).filter(r => r[1] != null);
+  if (!rows.length) return "";
+  // raggruppa le profondità consecutive con la stessa temperatura (±0,1°)
+  const groups = [];
+  rows.forEach(([z, t]) => {
+    const g = groups[groups.length - 1];
+    if (g && Math.abs(g.t - t) <= 0.1) { g.to = z; } else groups.push({ from: z, to: z, t });
+  });
+  const table = groups.map(g => "<div><span>" + (g.from === g.to ? g.from + " m" : g.from + "–" + g.to + " m") +
+    "</span><b>" + fmt(g.t, 1, "°") + "</b></div>").join("");
+  // grafico SVG: temperatura in orizzontale, profondità in verticale verso il basso
+  const zMax = Math.max(...pts.map(p => p[0])), ts = pts.map(p => p[1]);
+  let tMin = Math.min(...ts), tMax2 = Math.max(...ts);
+  if (tMax2 - tMin < 2) { const m = (tMax2 + tMin) / 2; tMin = m - 1; tMax2 = m + 1; }
+  const W = 200, H = 150, L = 34, T = 14, X = t => L + (t - tMin) / (tMax2 - tMin) * (W - L - 10), Y = z => T + z / zMax * (H - T - 8);
+  const path = pts.map((p, i) => (i ? "L" : "M") + X(p[1]).toFixed(1) + " " + Y(p[0]).toFixed(1)).join(" ");
+  const yTicks = [0, 20, 40, 60, 80, 100].filter(z => z <= zMax).map(z =>
+    '<line x1="' + L + '" x2="' + (W - 10) + '" y1="' + Y(z) + '" y2="' + Y(z) + '" class="g"/>' +
+    '<text x="' + (L - 5) + '" y="' + (Y(z) + 3.5) + '" text-anchor="end">' + z + "</text>").join("");
+  const tc = d.deep.thermocline && d.deep.thermocline <= zMax
+    ? '<line x1="' + L + '" x2="' + (W - 10) + '" y1="' + Y(d.deep.thermocline) + '" y2="' + Y(d.deep.thermocline) + '" class="tc"/>' : "";
+  const svg = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Profilo di temperatura fino a ' + zMax + ' m">' +
+    yTicks + tc +
+    '<text x="' + L + '" y="9">' + fmt(tMin, 0, "°") + '</text><text x="' + (W - 10) + '" y="9" text-anchor="end">' + fmt(tMax2, 0, "°") + "</text>" +
+    '<path d="' + path + '" class="p"/></svg>';
+  return '<div class="prof"><span class="prof-h">Acqua in profondità</span><div class="prof-body"><div class="prof-t">' + table + "</div>" + svg + "</div></div>";
 }
 const tAt = (d, z) => { const p = d.deep && d.deep.profile.find(x => x[0] === z); return p ? p[1] : null; };
 const kv = (k, v) => "<div><span>" + k + "</span>" + v + "</div>";
