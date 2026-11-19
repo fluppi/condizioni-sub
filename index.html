@@ -432,16 +432,27 @@ const fmt = (v, n = 1, u = "") => v == null ? "n/d" : v.toFixed(n).replace(".", 
 const dayName = d => new Date(d + "T12:00").toLocaleDateString("it-IT", { weekday: "short" });
 const dayNum = d => new Date(d + "T12:00").toLocaleDateString("it-IT", { day: "numeric", month: "short" });
 
+// Ordine: prima i siti più vicini a casa (Modena)
+const HOME = { lat: 44.647, lon: 10.925 };
+function distKm(s){
+  const r = Math.PI / 180, dLat = (s.lat - HOME.lat) * r, dLon = (s.lon - HOME.lon) * r;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(HOME.lat * r) * Math.cos(s.lat * r) * Math.sin(dLon / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(a));
+}
 function renderSpots(){
   $("spots").innerHTML = "";
-  [["Mare", s => !s.lake], ["Lago", s => s.lake]].forEach(([label, test]) => {
-    const idx = spots.map((s, i) => i).filter(i => test(spots[i]));
-    if (!idx.length) return;
+  const groups = [["Mare", s => !s.lake], ["Lago", s => s.lake]].map(([label, test]) => {
+    const idx = spots.map((s, i) => i).filter(i => test(spots[i])).sort((x, y) => distKm(spots[x]) - distKm(spots[y]));
+    return [label, idx];
+  }).filter(([, idx]) => idx.length)
+    .sort((A, B) => distKm(spots[A[1][0]]) - distKm(spots[B[1][0]]));   // gruppo più vicino per primo
+  groups.forEach(([label, idx]) => {
     const g = document.createElement("div"); g.className = "group";
     g.innerHTML = '<span class="group-label">' + label + "</span>";
     idx.forEach(i => {
       const b = document.createElement("button");
       b.textContent = spots[i].name; b.setAttribute("aria-pressed", i === sel);
+      b.title = Math.round(distKm(spots[i])) + " km da Modena";
       b.onclick = () => { sel = i; save(SEL_KEY, sel); renderSpots(); refresh(); };
       g.appendChild(b);
     });
