@@ -37,9 +37,18 @@ h2{font-size:1.25rem;font-weight:600;margin:24px 0 8px}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 14px}
 button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-offset:2px}
-.spots{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;margin-top:8px}
-.spots button{white-space:nowrap}
-.spots button[aria-pressed="true"]{background:var(--sea);border-color:var(--sea);color:var(--bg)}
+/* Siti: gruppi Mare / Lago che vanno a capo, niente barra di scorrimento */
+.spots{display:flex;flex-direction:column;gap:8px;margin:14px 0 6px}
+.group{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.group-label{flex:0 0 2.6rem;font:600 .7rem/1 Barlow,system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.spots button{white-space:nowrap;background:transparent;padding:5px 13px;font-size:.92rem;transition:border-color .15s,background .15s}
+.spots button:hover{border-color:var(--sea)}
+.spots button[aria-pressed="true"]{background:var(--sea);border-color:var(--sea);color:var(--bg);font-weight:600}
+/* Azioni: discrete, sotto i siti */
+.toolbar{display:flex;gap:2px;flex-wrap:wrap;align-items:center;padding-top:6px;border-top:1px solid var(--line)}
+.toolbar button{border:none;background:transparent;color:var(--muted);font-size:.84rem;padding:4px 10px;border-radius:6px}
+.toolbar button:hover{color:var(--ink);background:var(--panel)}
+.toolbar #btnRemove{margin-left:auto;color:var(--coral)}
 .now{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0 4px}
 .now div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
 .now .num{font-size:1.6rem;font-weight:600;line-height:1}
@@ -80,7 +89,6 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-of
 .msg{color:var(--coral);font-size:.92rem}
 footer{color:var(--muted);font-size:.8rem;margin:32px 0 16px}
 footer a{color:var(--sea)}
-.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 @media (prefers-reduced-motion: no-preference){.gauge i{transition:height .5s ease}}
 @media (max-width:600px){.day>button{grid-template-columns:3.6rem 1fr}.facts{grid-column:2}}
 </style>
@@ -92,10 +100,10 @@ footer a{color:var(--sea)}
 
   <nav class="spots" id="spots" aria-label="Siti d’immersione"></nav>
   <div class="toolbar">
-    <button id="btnAdd" aria-expanded="false">Aggiungi sito</button>
-    <button id="btnRefresh">Aggiorna</button>
+    <button id="btnAdd" aria-expanded="false">＋ Aggiungi sito</button>
+    <button id="btnRefresh">↻ Aggiorna</button>
     <button id="btnBase">Visibilità tipica</button>
-    <button id="btnRemove">Rimuovi questo sito</button>
+    <button id="btnRemove">Rimuovi sito</button>
   </div>
 
   <section class="add" id="addBox" hidden>
@@ -426,11 +434,18 @@ const dayNum = d => new Date(d + "T12:00").toLocaleDateString("it-IT", { day: "n
 
 function renderSpots(){
   $("spots").innerHTML = "";
-  spots.forEach((s, i) => {
-    const b = document.createElement("button");
-    b.textContent = s.name; b.setAttribute("aria-pressed", i === sel);
-    b.onclick = () => { sel = i; save(SEL_KEY, sel); renderSpots(); refresh(); };
-    $("spots").appendChild(b);
+  [["Mare", s => !s.lake], ["Lago", s => s.lake]].forEach(([label, test]) => {
+    const idx = spots.map((s, i) => i).filter(i => test(spots[i]));
+    if (!idx.length) return;
+    const g = document.createElement("div"); g.className = "group";
+    g.innerHTML = '<span class="group-label">' + label + "</span>";
+    idx.forEach(i => {
+      const b = document.createElement("button");
+      b.textContent = spots[i].name; b.setAttribute("aria-pressed", i === sel);
+      b.onclick = () => { sel = i; save(SEL_KEY, sel); renderSpots(); refresh(); };
+      g.appendChild(b);
+    });
+    $("spots").appendChild(g);
   });
   $("btnRemove").hidden = spots.length < 2;
 }
