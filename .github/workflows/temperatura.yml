@@ -1,0 +1,32 @@
+name: Temperature in profondità
+
+on:
+  schedule:
+    - cron: "15 17 * * *"   # ogni giorno alle 17:15 UTC
+  workflow_dispatch:         # avvio manuale
+
+permissions:
+  contents: write
+
+jobs:
+  aggiorna:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Installa dipendenze
+        run: pip install "copernicusmarine>=2,<3" numpy
+      - name: Scarica profili di temperatura
+        env:
+          COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.COPERNICUSMARINE_SERVICE_USERNAME }}
+          COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.COPERNICUSMARINE_SERVICE_PASSWORD }}
+        run: python scripts/temperatura.py
+      - name: Salva nel repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add data/temperatura.json
+          git diff --cached --quiet || (git commit -m "Aggiorna temperature in profondità" && git push)
