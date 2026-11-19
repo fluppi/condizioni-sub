@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
 <style>
 :root{
   color-scheme: light;
@@ -510,7 +510,7 @@ function render(data){
     box(H(marine.hourly.sea_surface_temperature, mi, 1, "°"), "Acqua in superficie (aria " + H(wx.hourly.temperature_2m, wi, 0, "°") + ")") +
     box(chlText, chl && chl.date ? "Clorofilla mg/m³ (" + chl.date.slice(0, 10) + ")" : "Clorofilla mg/m³");
 
-  Object.values(charts).forEach(c => c.destroy()); charts = {};
+  Object.values(charts).forEach(c => c && c.destroy()); charts = {};
   $("days").innerHTML = "";
   days.forEach((d, k) => {
     const li = document.createElement("li"); li.className = "day";
@@ -570,13 +570,14 @@ function render(data){
         '<span class="chev" aria-hidden="true">›</span>' +
       "</button>" +
       '<div class="detail" hidden>' +
-        (d.lake ? meteo + water : sea + water + meteo) + why +
+        (d.lake ? meteo + "<div>" + water + why + "</div>" : sea + water + meteo + why) +
         '<section class="sec full"><h3>Andamento orario</h3><div class="chartbox"><canvas aria-label="Andamento orario di onda, raffiche e pioggia"></canvas></div></section>' +
       "</div>";
     const btn = li.querySelector("button"), det = li.querySelector(".detail");
     btn.onclick = () => {
       const open = det.hidden; det.hidden = !open; btn.setAttribute("aria-expanded", open);
-      if (open && !charts[k]) charts[k] = drawChart(li.querySelector("canvas"), d, marine, wx);
+      const cv = li.querySelector("canvas");
+      if (open && !charts[k] && cv) charts[k] = drawChart(cv, d, marine, wx) || undefined;
     };
     $("days").appendChild(li);
   });
@@ -618,12 +619,17 @@ const kv = (k, v) => "<dt>" + k + "</dt><dd>" + v + "</dd>";
 const box = (v, l) => '<div><b class="num">' + v + "</b><span>" + l + "</span></div>";
 
 function drawChart(canvas, d, marine, wx){
+  if (typeof Chart === "undefined") {        // libreria non caricata: niente spazio vuoto
+    canvas.parentElement.outerHTML = '<p class="prof-note">Grafico non disponibile (libreria non caricata).</p>';
+    return null;
+  }
   const css = getComputedStyle(document.documentElement);
   const c = n => css.getPropertyValue(n).trim();
   const mi = marine ? index(marine.hourly) : new Map();
   const labels = d.all.map(i => wx.hourly.time[i].slice(11, 13));
   const wave = d.all.map(i => { const j = mi.get(wx.hourly.time[i]); return j == null ? null : marine.hourly.wave_height[j]; });
   return new Chart(canvas, {
+    type: "bar",   // tipo base; ogni serie indica il proprio
     data: { labels, datasets: [
       { hidden: !marine, type: "line", label: "Onda (m)", data: wave, borderColor: c("--chart-wave"), backgroundColor: c("--chart-wave"), yAxisID: "y", tension: .3, pointRadius: 0, borderWidth: 2 },
       { type: "line", label: "Raffiche (kn)", data: d.all.map(i => wx.hourly.wind_gusts_10m[i]), borderColor: c("--chart-wind"), backgroundColor: c("--chart-wind"), yAxisID: "y1", tension: .3, pointRadius: 0, borderWidth: 2, borderDash: [4, 3] },
