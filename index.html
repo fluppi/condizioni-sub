@@ -125,6 +125,7 @@ footer a{color:var(--sea)}
     <button id="btnAdd" aria-expanded="false">＋ Aggiungi sito</button>
     <button id="btnRefresh">↻ Aggiorna</button>
     <button id="btnBase">Visibilità tipica</button>
+    <button id="btnShelter">Ridosso</button>
     <button id="btnRemove">Rimuovi sito</button>
   </div>
 
@@ -166,13 +167,14 @@ footer a{color:var(--sea)}
 /* ---------- Configurazione ---------- */
 const DEFAULT_SPOTS = [
   // base = visibilità orizzontale tipica (m) in una giornata buona: tarala con “Visibilità tipica”
-  { name: "Cavalaire-sur-Mer", lat: 43.170, lon: 6.535, base: 20 },
+  // shelter = direzioni (da cui arrivano vento/onda) da cui il sito è riparato; indicative, modificabili con “Ridosso”
+  { name: "Cavalaire-sur-Mer", lat: 43.170, lon: 6.535, base: 20, shelter: ["O", "ONO", "NO", "NNO", "N", "NNE"] },
   // rivers: fiumi che scaricano vicino al sito (punto sull’alveo, poco a monte della foce); w = peso 0–1
-  { name: "Lavagna", lat: 44.296, lon: 9.335, base: 15, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 1 }] },
-  { name: "Santa Margherita Ligure", lat: 44.328, lon: 9.218, base: 18, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 0.5 }] },
-  { name: "Riva del Garda", lat: 45.875, lon: 10.850, lake: true, base: 10, rivers: [{ name: "Sarca", lat: 45.900, lon: 10.875, w: 1 }] },
-  { name: "Salò", lat: 45.605, lon: 10.525, lake: true, base: 7 },
-  { name: "Assenza", lat: 45.703, lon: 10.760, lake: true, base: 10 }
+  { name: "Lavagna", lat: 44.296, lon: 9.335, base: 15, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 1 }], shelter: ["NO", "NNO", "N", "NNE", "NE"] },
+  { name: "Santa Margherita Ligure", lat: 44.328, lon: 9.218, base: 18, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 0.5 }], shelter: ["OSO", "O", "ONO", "NO", "NNO", "N", "NNE", "NE"] },
+  { name: "Riva del Garda", lat: 45.875, lon: 10.850, lake: true, base: 10, rivers: [{ name: "Sarca", lat: 45.900, lon: 10.875, w: 1 }], shelter: ["NNO", "N", "NNE"] },
+  { name: "Salò", lat: 45.605, lon: 10.525, lake: true, base: 7, shelter: ["OSO", "O", "ONO"] },
+  { name: "Assenza", lat: 45.703, lon: 10.760, lake: true, base: 10, shelter: ["ENE", "E", "ESE"] }
 ];
 const WINDOW_START = 8, WINDOW_END = 18;        // fascia oraria immersioni
 // Clorofilla satellitare (best effort): dataset ERDDAP e nome variabile.
@@ -186,7 +188,11 @@ let spots = load(STORE_KEY, DEFAULT_SPOTS);
 DEFAULT_SPOTS.forEach(d => {
   const e = spots.find(s => s.name === d.name);
   if (!e) spots.push(d);
-  else { if (e.base == null) e.base = d.base; if (!e.rivers && d.rivers) e.rivers = d.rivers; }
+  else {
+    if (e.base == null) e.base = d.base;
+    if (!e.rivers && d.rivers) e.rivers = d.rivers;
+    if (e.shelter === undefined && d.shelter) e.shelter = d.shelter;
+  }
 });
 spots.forEach(s => { if (s.base == null) s.base = s.lake ? 8 : 15; });
 save(STORE_KEY, spots);
@@ -275,7 +281,7 @@ const max = a => { const v = a.filter(x => x != null); return v.length ? Math.ma
 const sum = a => a.filter(x => x != null).reduce((p, c) => p + c, 0);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
-function analyse(marine, wx, chl, base, rivers = []){
+function analyse(marine, wx, chl, base, rivers = [], shelter = []){
   const mh = marine ? marine.hourly : null, wh = wx.hourly;
   const mi = mh ? index(mh) : new Map();
   const times = wh.time; // asse orario di riferimento
@@ -312,7 +318,7 @@ function analyse(marine, wx, chl, base, rivers = []){
       rain72: sum(before72.map(i => wh.precipitation[i])),
       prevHs: max(before36.map(i => pick(M("wave_height"), times[i]))),
       prevGust: max(before36.map(i => wh.wind_gusts_10m[i])),
-      lake: !mh, base,
+      lake: !mh, base, shelter,
       windDir: circMean(W((t, i) => wh.wind_direction_10m[i])),
       waveDir: circMean(W(t => pick(M("wave_direction"), t))),
       swellDir: circMean(W(t => pick(M("swell_wave_direction"), t))),
@@ -439,14 +445,33 @@ function scoreVis(d){
   };
 }
 
+// Riparo: la direzione media (da cui arriva) cade in un settore protetto del sito?
+const sheltered = (deg, list) => deg != null && (list || []).includes(cardinal(deg));
+
 function scoreSurf(d){
-  let s = 5;
-  if (d.hs != null) s -= d.hs > 1.5 ? 3.5 : d.hs > 1 ? 2.5 : d.hs > 0.7 ? 1.5 : d.hs > 0.4 ? 0.5 : 0;
-  if (d.gust != null) s -= d.gust > 30 ? 2.5 : d.gust > 22 ? 1.5 : d.gust > 15 ? 0.5 : 0;
-  if (d.tp != null && d.hs != null && d.tp < 5 && d.hs > 0.5) s -= 0.5; // onda corta e ripida
+  let s = 5; const why = [];
+  const sub = (pts, txt) => { if (pts > 0) { s -= pts; why.push(txt + " (−" + fmt(pts, pts % 1 ? 1 : 0) + ")"); } };
+  // onda: se arriva da un settore riparato conta la metà
+  if (d.hs != null){
+    const prot = sheltered(d.waveDir, d.shelter), hs = prot ? d.hs * 0.5 : d.hs;
+    const pts = hs > 1.5 ? 3.5 : hs > 1 ? 2.5 : hs > 0.7 ? 1.5 : hs > 0.4 ? 0.5 : 0;
+    sub(pts, "Onda " + fmt(d.hs, 1, " m") + " da " + cardinal(d.waveDir) +
+      (prot ? ", sito riparato: conta come " + fmt(hs, 1, " m") : ", sito esposto"));
+    if (prot && pts === 0 && d.hs > 0.4) why.push("Onda " + fmt(d.hs, 1, " m") + " da " + cardinal(d.waveDir) + ", ma il sito è riparato da quella direzione");
+  }
+  // raffiche: da un settore riparato contano il 75%
+  if (d.gust != null){
+    const prot = sheltered(d.windDir, d.shelter), g = prot ? d.gust * 0.75 : d.gust;
+    const pts = g > 30 ? 2.5 : g > 22 ? 1.5 : g > 15 ? 0.5 : 0;
+    sub(pts, "Raffiche " + fmt(d.gust, 0, " kn") + " da " + cardinal(d.windDir) +
+      (prot ? ", sito riparato: contano come " + fmt(g, 0, " kn") : ""));
+  }
+  if (d.tp != null && d.hs != null && d.tp < 5 && d.hs > 0.5 && !sheltered(d.waveDir, d.shelter))
+    sub(0.5, "Onda corta e ripida (periodo " + fmt(d.tp, 0, " s") + ")");
   s = clamp(Math.round(s * 2) / 2, 1, 5);
   const lab = s >= 4.5 ? "Calmo" : s >= 3.5 ? "Ok" : s >= 2.5 ? "Mosso" : s >= 1.5 ? "Impegnativo" : "Sconsigliato";
-  return { surf: s, surfLabel: lab };
+  if (!why.length) why.push("Onda e vento deboli");
+  return { surf: s, surfLabel: lab, surfWhy: why };
 }
 
 /* ---------- Render ---------- */
@@ -558,6 +583,9 @@ function render(data){
         d.visWhy.map(w => "<li>" + w + "</li>").join("") +
         "<li>Base del sito in giornata buona: " + d.base + " m (modificabile)</li>" +
         (d.lake ? "<li>Sui laghi niente dati di onda: la stima usa vento, piogge e fiumi</li>" : "") +
+      "</ul><h3>Perché questa superficie</h3><ul class=\"why\">" +
+        d.surfWhy.map(w => "<li>" + w + "</li>").join("") +
+        "<li>" + ((d.shelter || []).length ? "Riparato da: " + d.shelter.join(", ") : "Nessun ridosso impostato") + " (modificabile)</li>" +
       "</ul></section>";
 
     li.innerHTML =
@@ -663,7 +691,7 @@ function readCache(s){
 function writeCache(s, c){ memCache.set(cacheKey(s), c); save(cacheKey(s), c); }
 
 function show(s, c){
-  const days = analyse(c.marine, c.wx, c.chl, s.base, c.rivers || []);
+  const days = analyse(c.marine, c.wx, c.chl, s.base, c.rivers || [], s.shelter || []);
   const ts = tempData && tempData.spots ? tempData.spots[s.name] : null;
   days.forEach(d => { d.deep = ts ? ts.days.find(x => x.date === d.date) || null : null; });
   lastData = { t: c.t, marine: c.marine, wx: c.wx, chl: c.chl, days,
@@ -777,6 +805,17 @@ $("btnBase").onclick = () => {
   const n = parseFloat(String(v).replace(",", "."));
   if (!isFinite(n) || n < 1 || n > 60) return alert("Inserisci un numero tra 1 e 60.");
   s.base = n; save(STORE_KEY, spots); refresh();
+};
+$("btnShelter").onclick = () => {
+  const s = spots[sel];
+  const v = prompt("Direzioni da cui " + s.name + " è riparato (da dove arrivano vento e onda), separate da virgola.\n" +
+    "Usa: N, NNE, NE, ENE, E, ESE, SE, SSE, S, SSO, SO, OSO, O, ONO, NO, NNO. Lascia vuoto se il sito è esposto ovunque.",
+    (s.shelter || []).join(", "));
+  if (v == null) return;
+  const list = v.toUpperCase().split(/[\s,;]+/).filter(Boolean);
+  const bad = list.filter(x => !CARD.includes(x));
+  if (bad.length) return alert("Direzioni non riconosciute: " + bad.join(", "));
+  s.shelter = [...new Set(list)]; save(STORE_KEY, spots); refresh();
 };
 $("btnRemove").onclick = () => {
   if (spots.length < 2 || !confirm("Rimuovere " + spots[sel].name + "?")) return;
