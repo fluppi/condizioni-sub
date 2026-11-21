@@ -171,7 +171,7 @@ const DEFAULT_SPOTS = [
   { name: "Cavalaire-sur-Mer", lat: 43.170, lon: 6.535, base: 20, shelter: ["O", "ONO", "NO", "NNO", "N", "NNE"] },
   // rivers: fiumi che scaricano vicino al sito (punto sull’alveo, poco a monte della foce); w = peso 0–1
   { name: "Lavagna", lat: 44.296, lon: 9.335, base: 15, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 1 }], shelter: ["NO", "NNO", "N", "NNE", "NE"] },
-  { name: "Santa Margherita Ligure", lat: 44.328, lon: 9.218, base: 18, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 0.5 }], shelter: ["OSO", "O", "ONO", "NO", "NNO", "N", "NNE", "NE"] },
+  { name: "Santa Margherita Ligure", lat: 44.328, lon: 9.218, base: 18, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 0.5 }], shelter: ["SSO", "SO", "OSO", "O", "ONO", "NO", "NNO", "N", "NNE", "NE"] },
   { name: "Riva del Garda", lat: 45.875, lon: 10.850, lake: true, base: 10, rivers: [{ name: "Sarca", lat: 45.900, lon: 10.875, w: 1 }], shelter: ["NNO", "N", "NNE"] },
   { name: "Salò", lat: 45.605, lon: 10.525, lake: true, base: 7, shelter: ["OSO", "O", "ONO"] },
   { name: "Assenza", lat: 45.703, lon: 10.760, lake: true, base: 10, shelter: ["ENE", "E", "ESE"] }
@@ -192,6 +192,8 @@ DEFAULT_SPOTS.forEach(d => {
     if (e.base == null) e.base = d.base;
     if (!e.rivers && d.rivers) e.rivers = d.rivers;
     if (e.shelter === undefined && d.shelter) e.shelter = d.shelter;
+    // aggiorna il vecchio valore predefinito di Santa Margherita (se non l’hai modificato a mano)
+    if (d.name === "Santa Margherita Ligure" && (e.shelter || []).join() === "OSO,O,ONO,NO,NNO,N,NNE,NE") e.shelter = d.shelter;
   }
 });
 spots.forEach(s => { if (s.base == null) s.base = s.lake ? 8 : 15; });
@@ -318,6 +320,7 @@ function analyse(marine, wx, chl, base, rivers = [], shelter = []){
       rain72: sum(before72.map(i => wh.precipitation[i])),
       prevHs: max(before36.map(i => pick(M("wave_height"), times[i]))),
       prevGust: max(before36.map(i => wh.wind_gusts_10m[i])),
+      prevWaveDir: circMean(before36.map(i => pick(M("wave_direction"), times[i]))),
       lake: !mh, base, shelter,
       windDir: circMean(W((t, i) => wh.wind_direction_10m[i])),
       waveDir: circMean(W(t => pick(M("wave_direction"), t))),
@@ -421,7 +424,11 @@ function scoreVis(d){
     for (const [thr, k] of rules) if (val > thr) { f *= k; why.push(label(val) + " (−" + Math.round((1 - k) * 100) + "%)"); return; }
   };
   step(d.rain72, [[60, 0.4], [30, 0.6], [15, 0.75], [5, 0.9]], v => "Pioggia nelle 72 ore prima: " + v.toFixed(0) + " mm, torbido da fiumi e scarichi");
-  step(d.prevHs, [[3, 0.4], [2, 0.55], [1.2, 0.75], [0.8, 0.9]], v => "Mare formato nelle 36 ore prima (fino a " + fmt(v, 1, " m") + "): sedimento in sospensione");
+  // onda da un settore riparato: al sito arriva circa la metà, e rimescola meno il fondo
+  const prevProt = sheltered(d.prevWaveDir, d.shelter), dayProt = sheltered(d.waveDir, d.shelter);
+  step(d.prevHs == null ? null : d.prevHs * (prevProt ? 0.5 : 1), [[3, 0.4], [2, 0.55], [1.2, 0.75], [0.8, 0.9]], v =>
+    "Mare formato nelle 36 ore prima (fino a " + fmt(d.prevHs, 1, " m") + " da " + cardinal(d.prevWaveDir) +
+    (prevProt ? ", sito riparato: conta come " + fmt(v, 1, " m") : "") + "): sedimento in sospensione");
   if (d.lake) step(d.prevGust, [[30, 0.65], [22, 0.8], [16, 0.9]], v => "Vento forte nelle 36 ore prima (raffiche " + v.toFixed(0) + " kn): acqua rimescolata");
   for (const r of d.riv || []){
     if (r.ratio == null) continue;
@@ -433,7 +440,8 @@ function scoreVis(d){
     why.push("Fiume " + r.name + ": portata " + r.q.toFixed(0) + " m³/s, " + r.ratio.toFixed(1).replace(".", ",") +
              "× il normale (−" + Math.round((1 - k) * 100) + "%)");
   }
-  step(d.hs, [[1.2, 0.8], [0.6, 0.9]], v => "Onda nella giornata " + fmt(v, 1, " m"));
+  step(d.hs == null ? null : d.hs * (dayProt ? 0.5 : 1), [[1.2, 0.8], [0.6, 0.9]], v =>
+    "Onda nella giornata " + fmt(d.hs, 1, " m") + (dayProt ? " da settore riparato (conta come " + fmt(v, 1, " m") + ")" : ""));
   if (chlVis != null && chlVis < d.base) why.push("Clorofilla " + fmt(d.chl, 2) + " mg/m³: plancton, limita a circa " + Math.round(chlVis) + " m");
   const m = Math.max(1, start * f);
   const r = m / d.base;
