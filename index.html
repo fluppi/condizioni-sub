@@ -291,10 +291,13 @@ function analyse(marine, wx, chl, base, rivers = [], shelter = []){
   const dates = [...new Set(times.map(t => t.slice(0, 10)))].filter(d => d >= today);
   const pick = (arr, t) => { if (!arr) return null; const i = mi.get(t); return i == null ? null : arr[i]; };
   const M = k => mh ? mh[k] : null;
-  // portata normale = mediana dei 60 giorni passati
+  // portata di riferimento: il maggiore tra mediana e media dei 60 giorni passati.
+  // Dopo settimane di secca la mediana è minuscola e anche una portata modesta sembrerebbe “5× il normale”.
   const riv = rivers.map(r => {
     const past = r.q.filter((v, i) => v != null && r.time[i] < today).sort((a, b) => a - b);
-    return { ...r, median: past.length ? past[Math.floor(past.length / 2)] : null };
+    const median = past.length ? past[Math.floor(past.length / 2)] : null;
+    const avg = past.length ? past.reduce((x, y) => x + y, 0) / past.length : null;
+    return { ...r, median: median == null ? null : Math.max(median, avg) };
   });
 
   return dates.map(date => {
