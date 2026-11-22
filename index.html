@@ -91,7 +91,17 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-of
 .sec h3{font:600 .7rem/1 Barlow,system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0;font-size:.9rem}
 .kv dt{color:var(--muted)} .kv dd{margin:0}
-.hist{color:var(--muted);font-size:.8rem}
+.hist{color:var(--muted);font-size:.8rem;line-height:1.35}
+.river{margin:0 0 12px;font-size:.9rem}
+.tag{font-size:.75rem;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.tag.good{color:var(--sea);border-color:var(--sea)} .tag.mid{color:var(--sand);border-color:var(--sand)} .tag.bad{color:var(--coral);border-color:var(--coral)}
+.spark{display:block;width:142px;height:34px;margin:6px 0 2px}
+.spark rect{fill:var(--sea-soft)} .spark rect.hi{fill:var(--sand)}
+.spark line{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
+.gloss{margin-top:24px;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:var(--panel)}
+.gloss summary{cursor:pointer;font-weight:600}
+.gloss dl{margin:10px 0 2px;font-size:.9rem}
+.gloss dt{font-weight:600;margin-top:8px} .gloss dd{margin:0;color:var(--muted)}
 .why{margin:0;padding-left:18px;color:var(--muted);font-size:.88rem}
 .why li{margin:3px 0}
 .prof-body{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;font-size:.9rem}
@@ -152,6 +162,24 @@ footer a{color:var(--sea)}
   <h2>Prossimi giorni</h2>
   <p class="sub">Fascia 8–18, visibilità orizzontale stimata. Tocca un giorno per mare, temperature in profondità, meteo e il perché della stima.</p>
   <ul class="days" id="days"></ul>
+
+  <details class="gloss">
+    <summary>Come leggere i dati</summary>
+    <dl>
+      <dt>Visibilità orizzontale</dt><dd>Fino a che distanza vedi il compagno o la parete davanti a te. È una stima, data come forchetta in metri.</dd>
+      <dt>Visibilità verticale</dt><dd>Quanto vedi guardando verso il basso o verso la superficie: di solito un po’ più dell’orizzontale.</dd>
+      <dt>Superficie</dt><dd>Quanto è comodo entrare, uscire e stare a galla: calmo, ok, mosso, impegnativo, sconsigliato. Dipende da onda e raffiche.</dd>
+      <dt>Onda e periodo</dt><dd>L’altezza è in metri. Il periodo è il tempo tra un’onda e la successiva: sotto i 5 secondi l’onda è corta e ripida, quindi più fastidiosa a parità di altezza.</dd>
+      <dt>Onda lunga (swell)</dt><dd>Onda nata da una perturbazione lontana: può arrivare anche con poco vento e muovere l’acqua in profondità.</dd>
+      <dt>Nodi e raffiche</dt><dd>Il vento è in nodi (kn): 1 nodo è circa 1,85 km/h. Le raffiche sono i colpi di vento più forti della giornata.</dd>
+      <dt>Ridosso</dt><dd>Le direzioni da cui il sito è riparato dalla costa: da lì onda e vento arrivano attenuati.</dd>
+      <dt>Trasparenza</dt><dd>Fino a che profondità si vede un disco bianco calato dalla superficie (profondità di Secchi). Sul lago è misurata dal satellite nei giorni sereni.</dd>
+      <dt>Termoclino</dt><dd>La quota dove la temperatura cala di colpo: sopra l’acqua è più calda, sotto più fredda. In inverno spesso sparisce o scende molto in basso.</dd>
+      <dt>Portata del fiume</dt><dd>Quanta acqua porta il fiume, in metri cubi al secondo. Quando è molto sopra il solito il fiume è in piena e scarica fango vicino alla foce.</dd>
+      <dt>Plancton (clorofilla)</dt><dd>Più plancton c’è, più l’acqua è verde e meno si vede. Si misura dal satellite attraverso la clorofilla.</dd>
+      <dt>Ore più tranquille</dt><dd>Le tre ore tra le 8 e le 18 con meno vento e meno onda.</dd>
+    </dl>
+  </details>
 
   <footer>
     Dati: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> (modelli marini, meteo e portate fluviali GloFAS),
@@ -447,8 +475,8 @@ function scoreVis(d){
   if (d.secchi){
     // Trasparenza misurata dal satellite: la visibilità orizzontale è circa il 75% della profondità di Secchi
     start = clamp(SECCHI_TO_HORIZ * d.secchi.v, 1, 30);
-    why.push("Misura satellitare del " + dayNum(d.secchi.date) + (d.secchi.lakeWide ? " (media del lago)" : "") +
-      ": Secchi " + fmt(d.secchi.v, 1, " m") + ", cioè circa " + fmt(start, 0, " m") + " in orizzontale" +
+    why.push("Il satellite il " + dayNum(d.secchi.date) + (d.secchi.lakeWide ? " (media del lago)" : "") +
+      " ha misurato acqua " + clarityWord(d.secchi.v) + ": trasparenza " + fmt(d.secchi.v, 1, " m") + ", cioè circa " + fmt(start, 0, " m") + " di visibilità in orizzontale" +
       (d.secchi.age > 1 ? " (" + d.secchi.age + " giorni prima: sotto contano solo gli eventi successivi)" : ""));
   }
   const step = (val, rules, label) => {
@@ -470,13 +498,13 @@ function scoreVis(d){
     if (!hit) continue;
     const k = 1 - r.w * (1 - hit[1]);
     f *= k;
-    why.push("Fiume " + r.name + ": " + r.peak.toFixed(0) + " m³/s" +
+    why.push("Fiume " + r.name + " " + riverState(r).label +
              (r.peakAgo ? " " + (r.peakAgo === 1 ? "il giorno prima" : r.peakAgo + " giorni prima") : "") +
-             ", contro " + fmt(r.norm, r.norm < 10 ? 1 : 0) + " m³/s abituali (−" + Math.round((1 - k) * 100) + "%)");
+             " (" + r.peak.toFixed(0) + " m³/s contro " + fmt(r.norm, r.norm < 10 ? 1 : 0) + " abituali): porta acqua torbida (−" + Math.round((1 - k) * 100) + "%)");
   }
   step(d.hs == null ? null : d.hs * (dayProt ? 0.5 : 1), [[1.2, 0.8], [0.6, 0.9]], v =>
     "Onda nella giornata " + fmt(d.hs, 1, " m") + (dayProt ? " da settore riparato (conta come " + fmt(v, 1, " m") + ")" : ""));
-  if (chlVis != null && chlVis < d.base) why.push("Clorofilla " + fmt(d.chl, 2) + " mg/m³: plancton, limita a circa " + Math.round(chlVis) + " m");
+  if (chlVis != null && chlVis < d.base) why.push("Plancton: " + planktonWord(d.chl).toLowerCase() + " (clorofilla " + fmt(d.chl, 2) + " mg/m³). Con questa quantità si vede fino a circa " + Math.round(chlVis) + " m");
   const m = Math.max(1, start * f);
   const r = m / d.base;
   const lab = r >= 0.85 ? "Ottima" : r >= 0.65 ? "Buona" : r >= 0.45 ? "Discreta" : r >= 0.3 ? "Scarsa" : "Pessima";
@@ -566,22 +594,23 @@ function render(data){
   const H = (arr, i, n, u) => fmt(i >= 0 && arr ? arr[i] : null, n, u);
   const wdir = wi >= 0 ? wx.hourly.wind_direction_10m[wi] : null;
   const windBox = box(H(wx.hourly.wind_speed_10m, wi, 0, " kn"),
-    "Vento adesso da " + cardinal(wdir) + (windName(wdir, !marine) ? " (" + windName(wdir, !marine) + ")" : "") +
+    "Vento " + windWord(wi >= 0 ? wx.hourly.wind_speed_10m[wi] : null) + " adesso da " + cardinal(wdir) + (windName(wdir, !marine) ? " (" + windName(wdir, !marine) + ")" : "") +
     ", raffiche " + H(wx.hourly.wind_gusts_10m, wi, 0, " kn"));
   const d0 = days[0] || {};
   $("now").innerHTML = !marine
     ? windBox +
       box(fmt(tAt(d0, 1), 1, "°"), "Acqua in superficie (aria " + H(wx.hourly.temperature_2m, wi, 0, "°") + ")") +
       box(d0.secchi ? fmt(d0.secchi.v, 1, " m") : "n/d", d0.secchi
-        ? "Trasparenza (Secchi) da satellite, " + dayNum(d0.secchi.date) + (d0.secchi.lakeWide ? ", media lago" : "")
-        : "Trasparenza (Secchi): nessuna immagine recente") +
+        ? "Trasparenza: acqua " + clarityWord(d0.secchi.v) + " (satellite, " + dayNum(d0.secchi.date) + (d0.secchi.lakeWide ? ", media lago" : "") + ")"
+        : "Trasparenza: nessuna immagine satellitare recente") +
       box(fmt(d0.rain72, 0, " mm"), "Pioggia ultime 72 h")
     :
     box(H(marine.hourly.wave_height, mi, 1, " m"), "Onda adesso, " + H(marine.hourly.wave_period, mi, 0, " s") +
         " da " + cardinal(mi >= 0 ? marine.hourly.wave_direction[mi] : null)) +
     windBox +
     box(H(marine.hourly.sea_surface_temperature, mi, 1, "°"), "Acqua in superficie (aria " + H(wx.hourly.temperature_2m, wi, 0, "°") + ")") +
-    box(chlText, chl && chl.date ? "Clorofilla mg/m³ (" + chl.date.slice(0, 10) + ")" : "Clorofilla mg/m³");
+    box(planktonWord(chl ? chl.value : null) || "n/d", chl && chl.value != null
+      ? "Plancton in acqua (clorofilla " + chlText + " mg/m³)" : "Plancton: dato satellitare non disponibile");
 
   Object.values(charts).forEach(c => c && c.destroy()); charts = {};
   $("days").innerHTML = "";
@@ -604,16 +633,18 @@ function render(data){
 
     const sea = d.lake ? "" :
       '<section class="sec"><h3>Mare</h3><dl class="kv">' +
-        kv("Onda", fmt(d.hs, 1, " m") + " · periodo " + fmt(d.tp, 0, " s") + " · da " + cardinal(d.waveDir)) +
-        kv("Swell", fmt(d.swell, 1, " m") + " · " + fmt(d.swellTp, 0, " s") + " · da " + cardinal(d.swellDir)) +
-        kv("Onda da vento", fmt(d.windWave, 1, " m")) +
-        kv("Corrente", fmt(d.cur, 1, " km/h") + " verso " + cardinal(d.curDir)) +
+        kv("Onda", "alta " + fmt(d.hs, 1, " m") + ", una ogni " + fmt(d.tp, 0, " s") + ", arriva da " + cardinal(d.waveDir) +
+          '<br><span class="hist">' + periodWord(d.tp) + "</span>") +
+        kv("Onda lunga", fmt(d.swell, 1, " m") + " ogni " + fmt(d.swellTp, 0, " s") + " da " + cardinal(d.swellDir) +
+          '<br><span class="hist">swell: nasce lontano e arriva anche senza vento</span>') +
+        kv("Onda da vento", fmt(d.windWave, 1, " m") + '<br><span class="hist">creata dal vento sul posto</span>') +
+        kv("Corrente", currentWord(d.cur) + " (" + fmt(d.cur, 1, " km/h") + " verso " + cardinal(d.curDir) + ")") +
       "</dl></section>";
     const water = '<section class="sec prof"><h3>Acqua in profondità</h3>' +
       (d.deep
         ? profileBlock(d) +
-          (data.deepInfo ? '<div class="prof-note">Termoclino: ' + (d.deep.thermocline ? "circa " + d.deep.thermocline + " m" : "assente, acqua mescolata") +
-            " · " + (data.deepInfo.lake ? "modello Alplakes (Eawag)" : "modello Copernicus") + " del " +
+          '<div class="prof-note">' + thermoText(d) + "</div>" +
+          (data.deepInfo ? '<div class="prof-note">Fonte: ' + (data.deepInfo.lake ? "modello Alplakes (Eawag)" : "modello Copernicus") + " del " +
             new Date(data.deepInfo.updated).toLocaleDateString("it-IT", { day: "numeric", month: "short" }) +
             ", fondale del punto " + (data.deepInfo.maxDepth ? "~" + data.deepInfo.maxDepth + " m" : "oltre 100 m") + "</div>" : "")
         : '<div class="prof-note">' + (d.lake
@@ -622,18 +653,19 @@ function render(data){
       "</section>";
     const meteo = '<section class="sec"><h3>Meteo</h3><dl class="kv">' +
         kv("Ore più tranquille", d.best || "n/d") +
-        kv("Vento", fmt(d.wind, 0, " kn") + ", raffiche " + fmt(d.gust, 0, " kn") + " · da " + cardinal(d.windDir) + (wn ? " (" + wn + ")" : "")) +
+        kv("Vento", windWord(d.wind) + ": " + fmt(d.wind, 0, " kn") + ", raffiche fino a " + fmt(d.gust, 0, " kn") + ", da " + cardinal(d.windDir) + (wn ? " (" + wn + ")" : "")) +
         kv("Cielo", (weatherText(d.code)[1] || "n/d") + " · nuvole " + fmt(d.cloud, 0, "%")) +
         kv("Aria", fmt(d.tMin, 0) + "–" + fmt(d.tMax, 0, "°")) +
         kv("Pioggia", fmt(d.rainDay, 0, " mm") + " oggi · " + fmt(d.rain72, 0, " mm") + " nelle 72 h prima") +
         kv("Alba / tramonto", hhmm(d.sunrise) + " / " + hhmm(d.sunset)) +
         kv("Luna", moon(d.date)) +
-        (d.secchi ? kv("Trasparenza", "Secchi " + fmt(d.secchi.v, 1, " m") + " · satellite " + dayNum(d.secchi.date) +
-          (d.secchi.lakeWide ? " (media lago)" : "")) : "") +
-        (d.riv || []).filter(r => r.hist.some(v => v != null)).map(r => kv("Fiume " + r.name,
-          (r.q != null ? r.q.toFixed(0) + " m³/s" : "n/d") + (r.norm ? " · abituale " + fmt(r.norm, r.norm < 10 ? 1 : 0) : "") +
-          '<br><span class="hist">ultimi 7 giorni: ' + r.hist.map(v => v == null ? "–" : v.toFixed(0)).join(" · ") + "</span>")).join("") +
-      "</dl></section>";
+        (d.secchi ? kv("Trasparenza", "acqua " + clarityWord(d.secchi.v) + ": un disco bianco calato dalla superficie si vede fino a " +
+          fmt(d.secchi.v, 1, " m") + '<br><span class="hist">misura da satellite del ' + dayNum(d.secchi.date) +
+          (d.secchi.lakeWide ? ", media del lago" : "") + "</span>") : "") +
+      "</dl>" +
+      ((d.riv || []).some(r => r.hist.some(v => v != null))
+        ? "<h3>Fiumi vicini</h3>" + d.riv.filter(r => r.hist.some(v => v != null)).map(r => riverBlock(r, d.lake, !!d.secchi)).join("") : "") +
+      "</section>";
     const why = '<section class="sec"><h3>Perché questa visibilità</h3><ul class="why">' +
         d.visWhy.map(w => "<li>" + w + "</li>").join("") +
         "<li>Base del sito in giornata buona: " + d.base + " m (modificabile)</li>" +
@@ -666,6 +698,49 @@ function render(data){
     $("days").appendChild(li);
   });
 }
+/* ---------- Parole semplici per chi non è del mestiere ---------- */
+const windWord = kn => kn == null ? "" : kn < 4 ? "quasi assente" : kn < 11 ? "debole" : kn < 17 ? "moderato" : kn < 28 ? "forte" : "molto forte";
+const periodWord = s => s == null ? "" : s < 5 ? "onda corta e ripida" : s <= 8 ? "onda regolare" : "onda lunga e distanziata";
+const currentWord = kmh => kmh == null ? "n/d" : kmh < 0.7 ? "Debole" : kmh < 1.8 ? "Moderata" : "Forte";
+const clarityWord = m => m >= 12 ? "molto limpida" : m >= 8 ? "limpida" : m >= 5 ? "media" : m >= 3 ? "torbida" : "molto torbida";
+const planktonWord = c => c == null ? null : c < 0.3 ? "Poco" : c < 1 ? "Medio" : "Molto";
+// stato del fiume rispetto alla sua portata abituale
+function riverState(r){
+  const x = r.ratio != null ? r.ratio : (r.q != null && r.norm ? r.q / r.norm : null);
+  if (x == null) return { label: "dato non disponibile", cls: "" };
+  if (x > 4) return { label: "in forte piena", cls: "bad", muddy: true };
+  if (x > 2.5) return { label: "in piena", cls: "bad", muddy: true };
+  if (x > 1.6) return { label: "ingrossato", cls: "mid", muddy: true };
+  if (x > 1.2) return { label: "un po’ sopra il solito", cls: "mid" };
+  return { label: "nella norma", cls: "good" };
+}
+function riverBlock(r, lake, measured){
+  const st = riverState(r), n = v => fmt(v, v < 10 ? 1 : 0);
+  const top = Math.max(...r.hist.filter(v => v != null), (r.norm || 0) * 1.5, 1);
+  const bars = r.hist.map((v, i) => v == null ? "" :
+    '<rect x="' + (i * 20 + 2) + '" y="' + (32 - v / top * 30).toFixed(1) + '" width="14" height="' + (v / top * 30).toFixed(1) +
+    '" rx="2" class="' + (r.norm && v > r.norm * 1.6 ? "hi" : "") + '"/>').join("");
+  const normY = r.norm ? (32 - r.norm / top * 30).toFixed(1) : null;
+  return '<div class="river"><div><b>' + r.name + '</b> <span class="tag ' + st.cls + '">' + st.label + "</span></div>" +
+    '<div class="hist">' + (r.q != null ? "Oggi porta " + n(r.q) + " m³ d’acqua al secondo" : "Portata di oggi non disponibile") +
+      (r.norm ? ", di solito " + n(r.norm) : "") + ".</div>" +
+    '<svg class="spark" viewBox="0 0 142 34" role="img" aria-label="Portata degli ultimi 7 giorni">' + bars +
+      (normY ? '<line x1="0" x2="142" y1="' + normY + '" y2="' + normY + '"/>' : "") + "</svg>" +
+    '<div class="hist">Ultimi 7 giorni (a destra oggi). La linea tratteggiata è il livello abituale.' +
+      (st.muddy ? " Con il fiume gonfio arriva acqua fangosa vicino alla foce" + (lake ? ": al lago servono alcuni giorni per schiarire." : ".")
+        : (r.norm && Math.max(...r.hist.filter(v => v != null)) > r.norm * 1.6
+            ? " Nei giorni scorsi c’è stata una piena" + (measured ? ": il suo effetto è già compreso nella misura del satellite." : ".") : "")) + "</div></div>";
+}
+// frase sul salto di temperatura
+function thermoText(d){
+  if (!d.deep) return "";
+  const tc = d.deep.thermocline, pr = d.deep.profile.filter(p => p[1] != null);
+  if (!tc || tc > 100 || !pr.length) return "Nessun salto di temperatura fino a 100 m: l’acqua è mescolata e quasi uguale a tutte le quote.";
+  const above = pr.filter(p => p[0] <= tc - 3).pop(), below = pr.find(p => p[0] >= tc + 15) || pr[pr.length - 1];
+  return "Salto di temperatura (termoclino) a circa " + tc + " m" +
+    (above && below ? ": sopra " + fmt(above[1], 0, "°") + ", sotto si scende verso " + fmt(below[1], 0, "°") + " a " + below[0] + " m." : ".");
+}
+
 // Profilo di temperatura: tabella compatta + grafico temperatura/profondità
 const PROFILE_Z = [5, 10, 20, 30, 40, 50, 60, 80, 100];
 function profileBlock(d){
