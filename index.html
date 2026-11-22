@@ -91,6 +91,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-of
 .sec h3{font:600 .7rem/1 Barlow,system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0;font-size:.9rem}
 .kv dt{color:var(--muted)} .kv dd{margin:0}
+.hist{color:var(--muted);font-size:.8rem}
 .why{margin:0;padding-left:18px;color:var(--muted);font-size:.88rem}
 .why li{margin:3px 0}
 .prof-body{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;font-size:.9rem}
@@ -156,6 +157,7 @@ footer a{color:var(--sea)}
     Dati: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> (modelli marini, meteo e portate fluviali GloFAS),
     clorofilla da <a href="https://coastwatch.pfeg.noaa.gov/erddap/" rel="noopener">NOAA ERDDAP</a> quando disponibile.
     Temperature in profondità dal modello <a href="https://data.marine.copernicus.eu/product/MEDSEA_ANALYSISFORECAST_PHY_006_013/description" rel="noopener">Copernicus Marine Mediterraneo</a>, aggiornate ogni giorno.
+    Lago di Garda: profili di temperatura e trasparenza da satellite di <a href="https://www.alplakes.eawag.ch" rel="noopener">Alplakes, Eawag</a> (CC BY 4.0).
     Per torbidità e clorofilla dettagliate: <a href="https://data.marine.copernicus.eu/viewer/expert" rel="noopener">Copernicus MyOcean</a>.
     La visibilità è una stima euristica, non una misura: verifica sempre con chi si è immerso di recente.
   </footer>
@@ -173,8 +175,8 @@ const DEFAULT_SPOTS = [
   { name: "Lavagna", lat: 44.296, lon: 9.335, base: 15, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 1 }], shelter: ["NO", "NNO", "N", "NNE", "NE"] },
   { name: "Santa Margherita Ligure", lat: 44.328, lon: 9.218, base: 18, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 0.5 }], shelter: ["SSO", "SO", "OSO", "O", "ONO", "NO", "NNO", "N", "NNE", "NE"] },
   { name: "Riva del Garda", lat: 45.875, lon: 10.850, lake: true, base: 10, rivers: [{ name: "Sarca", lat: 45.900, lon: 10.875, w: 1 }], shelter: ["NNO", "N", "NNE"] },
-  { name: "Salò", lat: 45.605, lon: 10.525, lake: true, base: 7, shelter: ["OSO", "O", "ONO"] },
-  { name: "Assenza", lat: 45.703, lon: 10.760, lake: true, base: 10, shelter: ["ENE", "E", "ESE"] }
+  { name: "Salò", lat: 45.605, lon: 10.525, lake: true, base: 7, rivers: [{ name: "Toscolano", lat: 45.660, lon: 10.600, w: 0.4 }], shelter: ["OSO", "O", "ONO"] },
+  { name: "Assenza", lat: 45.703, lon: 10.760, lake: true, base: 10, rivers: [{ name: "Sarca", lat: 45.900, lon: 10.875, w: 0.15 }], shelter: ["ENE", "E", "ESE"] }
 ];
 const WINDOW_START = 8, WINDOW_END = 18;        // fascia oraria immersioni
 // Clorofilla satellitare (best effort): dataset ERDDAP e nome variabile.
@@ -283,7 +285,11 @@ const max = a => { const v = a.filter(x => x != null); return v.length ? Math.ma
 const sum = a => a.filter(x => x != null).reduce((p, c) => p + c, 0);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
-function analyse(marine, wx, chl, base, rivers = [], shelter = []){
+// Quanti giorni indietro pesa una piena: sul lago il torbido resta più a lungo che in mare
+const RIVER_DECAY = [1, 1, 0.8, 0.6, 0.45, 0.3];
+const dayDiff = (a, b) => Math.round((new Date(b + "T12:00:00Z") - new Date(a + "T12:00:00Z")) / 864e5);
+
+function analyse(marine, wx, chl, base, rivers = [], shelter = [], obs = null){
   const mh = marine ? marine.hourly : null, wh = wx.hourly;
   const mi = mh ? index(mh) : new Map();
   const times = wh.time; // asse orario di riferimento
@@ -310,6 +316,13 @@ function analyse(marine, wx, chl, base, rivers = [], shelter = []){
       if (startIdx >= 0 && i < startIdx && i >= startIdx - 36) before36.push(i);
     });
     const W = f => win.map(i => f(times[i], i));
+    // misura satellitare di trasparenza valida per questo giorno (al massimo 10 giorni prima):
+    // le penalità contano solo per ciò che succede DOPO la misura, perché il resto è già dentro il dato
+    const age = obs ? dayDiff(obs.date, date) : null;
+    const secchi = obs && age >= 0 && age <= 10 ? { ...obs, age } : null;
+    const obsT = secchi ? secchi.date + "T12:00" : null;
+    const after = i => !obsT || times[i] >= obsT;
+    const look = mh ? 2 : 5;
     const d = {
       date, all,
       hs: mean(W(t => pick(M("wave_height"), t))),
@@ -321,8 +334,10 @@ function analyse(marine, wx, chl, base, rivers = [], shelter = []){
       wind: mean(W((t, i) => wh.wind_speed_10m[i])),
       gust: max(W((t, i) => wh.wind_gusts_10m[i])),
       rain72: sum(before72.map(i => wh.precipitation[i])),
+      rainVis: sum(before72.filter(after).map(i => wh.precipitation[i])),
       prevHs: max(before36.map(i => pick(M("wave_height"), times[i]))),
-      prevGust: max(before36.map(i => wh.wind_gusts_10m[i])),
+      prevGust: max(before36.filter(after).map(i => wh.wind_gusts_10m[i])),
+      secchi,
       prevWaveDir: circMean(before36.map(i => pick(M("wave_direction"), times[i]))),
       lake: !mh, base, shelter,
       windDir: circMean(W((t, i) => wh.wind_direction_10m[i])),
@@ -336,10 +351,17 @@ function analyse(marine, wx, chl, base, rivers = [], shelter = []){
       ...dailyFor(wx, date),
       best: bestWindow(win, times, wh.wind_gusts_10m, t => pick(M("wave_height"), t)),
       riv: riv.map(r => {
-        // massimo tra il giorno stesso e i due precedenti (il torbido arriva e resta)
-        const vals = r.time.map((t, i) => (t <= date && t >= addDays(date, -2)) ? r.q[i] : null);
-        const q = max(vals);
-        return { name: r.name, w: r.w, q, ratio: q != null && r.median ? q / r.median : null };
+        // la piena pesa per alcuni giorni (di più sul lago), con effetto che si attenua
+        const at = day => { const i = r.time.indexOf(day); return i < 0 ? null : r.q[i]; };
+        let eff = null, peak = null, peakAgo = 0;
+        for (let k = 0; k <= look; k++){
+          const day = addDays(date, -k), q = at(day);
+          if (q == null || (secchi && day <= secchi.date)) continue;   // già dentro la misura satellitare
+          if (eff == null || q * RIVER_DECAY[k] > eff) { eff = q * RIVER_DECAY[k]; peak = q; peakAgo = k; }
+        }
+        const hist = [6, 5, 4, 3, 2, 1, 0].map(k => at(addDays(date, -k)));
+        return { name: r.name, w: r.w, q: at(date), peak, peakAgo, hist, norm: r.median,
+                 ratio: eff != null && r.median ? eff / r.median : null };
       }),
       chl: chl?.value ?? null
     };
@@ -422,11 +444,19 @@ function scoreVis(d){
   }
   // 2) Fattori che riducono la visibilità.
   let f = 1; const why = [];
+  if (d.secchi){
+    // Trasparenza misurata dal satellite: la visibilità orizzontale è circa il 75% della profondità di Secchi
+    start = clamp(SECCHI_TO_HORIZ * d.secchi.v, 1, 30);
+    why.push("Misura satellitare del " + dayNum(d.secchi.date) + (d.secchi.lakeWide ? " (media del lago)" : "") +
+      ": Secchi " + fmt(d.secchi.v, 1, " m") + ", cioè circa " + fmt(start, 0, " m") + " in orizzontale" +
+      (d.secchi.age > 1 ? " (" + d.secchi.age + " giorni prima: sotto contano solo gli eventi successivi)" : ""));
+  }
   const step = (val, rules, label) => {
     if (val == null) return;
     for (const [thr, k] of rules) if (val > thr) { f *= k; why.push(label(val) + " (−" + Math.round((1 - k) * 100) + "%)"); return; }
   };
-  step(d.rain72, [[60, 0.4], [30, 0.6], [15, 0.75], [5, 0.9]], v => "Pioggia nelle 72 ore prima: " + v.toFixed(0) + " mm, torbido da fiumi e scarichi");
+  step(d.secchi ? d.rainVis : d.rain72, [[60, 0.4], [30, 0.6], [15, 0.75], [5, 0.9]], v =>
+    "Pioggia " + (d.secchi ? "dopo la misura" : "nelle 72 ore prima") + ": " + v.toFixed(0) + " mm, torbido da fiumi e scarichi");
   // onda da un settore riparato: al sito arriva circa la metà, e rimescola meno il fondo
   const prevProt = sheltered(d.prevWaveDir, d.shelter), dayProt = sheltered(d.waveDir, d.shelter);
   step(d.prevHs == null ? null : d.prevHs * (prevProt ? 0.5 : 1), [[3, 0.4], [2, 0.55], [1.2, 0.75], [0.8, 0.9]], v =>
@@ -440,8 +470,9 @@ function scoreVis(d){
     if (!hit) continue;
     const k = 1 - r.w * (1 - hit[1]);
     f *= k;
-    why.push("Fiume " + r.name + ": portata " + r.q.toFixed(0) + " m³/s, " + r.ratio.toFixed(1).replace(".", ",") +
-             "× il normale (−" + Math.round((1 - k) * 100) + "%)");
+    why.push("Fiume " + r.name + ": " + r.peak.toFixed(0) + " m³/s" +
+             (r.peakAgo ? " " + (r.peakAgo === 1 ? "il giorno prima" : r.peakAgo + " giorni prima") : "") +
+             ", contro " + fmt(r.norm, r.norm < 10 ? 1 : 0) + " m³/s abituali (−" + Math.round((1 - k) * 100) + "%)");
   }
   step(d.hs == null ? null : d.hs * (dayProt ? 0.5 : 1), [[1.2, 0.8], [0.6, 0.9]], v =>
     "Onda nella giornata " + fmt(d.hs, 1, " m") + (dayProt ? " da settore riparato (conta come " + fmt(v, 1, " m") + ")" : ""));
@@ -449,12 +480,14 @@ function scoreVis(d){
   const m = Math.max(1, start * f);
   const r = m / d.base;
   const lab = r >= 0.85 ? "Ottima" : r >= 0.65 ? "Buona" : r >= 0.45 ? "Discreta" : r >= 0.3 ? "Scarsa" : "Pessima";
-  if (!why.length) why.push("Nessun fattore di torbidità rilevato");
+  if (!why.length || (d.secchi && why.length === 1)) why.push(d.secchi ? "Nessun evento rilevante dopo la misura" : "Nessun fattore di torbidità rilevato");
   return {
     visM: m, visLo: Math.max(1, Math.round(m * 0.8)), visHi: Math.round(m * 1.15),
     visVert: Math.round(m * 1.4), visRatio: r, visLabel: lab, visWhy: why
   };
 }
+
+const SECCHI_TO_HORIZ = 0.75;   // rapporto tra visibilità orizzontale del sub e profondità di Secchi (da tarare)
 
 // Riparo: la direzione media (da cui arriva) cade in un settore protetto del sito?
 const sheltered = (deg, list) => deg != null && (list || []).includes(cardinal(deg));
@@ -535,11 +568,14 @@ function render(data){
   const windBox = box(H(wx.hourly.wind_speed_10m, wi, 0, " kn"),
     "Vento adesso da " + cardinal(wdir) + (windName(wdir, !marine) ? " (" + windName(wdir, !marine) + ")" : "") +
     ", raffiche " + H(wx.hourly.wind_gusts_10m, wi, 0, " kn"));
+  const d0 = days[0] || {};
   $("now").innerHTML = !marine
     ? windBox +
-      box(H(wx.hourly.temperature_2m, wi, 0, "°"), "Aria adesso") +
-      box(fmt(days[0] ? days[0].rain72 : null, 0, " mm"), "Pioggia ultime 72 h") +
-      box(days[0] && days[0].best ? days[0].best : "n/d", "Ore più tranquille oggi")
+      box(fmt(tAt(d0, 1), 1, "°"), "Acqua in superficie (aria " + H(wx.hourly.temperature_2m, wi, 0, "°") + ")") +
+      box(d0.secchi ? fmt(d0.secchi.v, 1, " m") : "n/d", d0.secchi
+        ? "Trasparenza (Secchi) da satellite, " + dayNum(d0.secchi.date) + (d0.secchi.lakeWide ? ", media lago" : "")
+        : "Trasparenza (Secchi): nessuna immagine recente") +
+      box(fmt(d0.rain72, 0, " mm"), "Pioggia ultime 72 h")
     :
     box(H(marine.hourly.wave_height, mi, 1, " m"), "Onda adesso, " + H(marine.hourly.wave_period, mi, 0, " s") +
         " da " + cardinal(mi >= 0 ? marine.hourly.wave_direction[mi] : null)) +
@@ -559,7 +595,9 @@ function render(data){
       d.lake ? "" : '<span class="chip">🌊 <b>' + fmt(d.hs, 1, " m") + "</b> · " + fmt(d.tp, 0, " s") + " · " + cardinal(d.waveDir) + "</span>",
       '<span class="chip">💨 <b>' + fmt(d.wind, 0, " kn") + "</b> raff. " + fmt(d.gust, 0) + " · " + cardinal(d.windDir) + (wn ? " " + wn : "") + "</span>",
       d.lake
-        ? '<span class="chip">🌡 aria ' + fmt(d.tMin, 0) + "–" + fmt(d.tMax, 0, "°") + "</span>"
+        ? (tAt(d, 1) != null
+            ? '<span class="chip">🌡 acqua <b>' + fmt(tAt(d, 1), 1, "°") + "</b>" + (tAt(d, 30) != null ? " · 30 m " + fmt(tAt(d, 30), 1, "°") : "") + "</span>"
+            : '<span class="chip">🌡 aria ' + fmt(d.tMin, 0) + "–" + fmt(d.tMax, 0, "°") + "</span>")
         : '<span class="chip">🌡 acqua <b>' + fmt(d.sst, 1, "°") + "</b>" + (tAt(d, 30) != null ? " · 30 m " + fmt(tAt(d, 30), 1, "°") : "") + "</span>",
       (d.rain72 > 5 || d.rainDay > 1) ? '<span class="chip warn">🌧 ' + fmt(d.rainDay, 0, " mm") + " oggi · " + fmt(d.rain72, 0) + " nelle 72 h</span>" : ""
     ].join("");
@@ -572,12 +610,15 @@ function render(data){
         kv("Corrente", fmt(d.cur, 1, " km/h") + " verso " + cardinal(d.curDir)) +
       "</dl></section>";
     const water = '<section class="sec prof"><h3>Acqua in profondità</h3>' +
-      (d.lake
-        ? '<dl class="kv">' + kv("Indicativo", "sotto i 40 m circa 8–9° tutto l’anno") + "</dl>"
-        : profileBlock(d) +
-          (d.deep && data.deepInfo ? '<div class="prof-note">Termoclino: ' + (d.deep.thermocline ? "circa " + d.deep.thermocline + " m" : "assente, acqua mescolata") +
-            " · modello Copernicus del " + new Date(data.deepInfo.updated).toLocaleDateString("it-IT", { day: "numeric", month: "short" }) +
-            ", fondale del punto " + (data.deepInfo.maxDepth ? "~" + data.deepInfo.maxDepth + " m" : "oltre 100 m") + "</div>" : "")) +
+      (d.deep
+        ? profileBlock(d) +
+          (data.deepInfo ? '<div class="prof-note">Termoclino: ' + (d.deep.thermocline ? "circa " + d.deep.thermocline + " m" : "assente, acqua mescolata") +
+            " · " + (data.deepInfo.lake ? "modello Alplakes (Eawag)" : "modello Copernicus") + " del " +
+            new Date(data.deepInfo.updated).toLocaleDateString("it-IT", { day: "numeric", month: "short" }) +
+            ", fondale del punto " + (data.deepInfo.maxDepth ? "~" + data.deepInfo.maxDepth + " m" : "oltre 100 m") + "</div>" : "")
+        : '<div class="prof-note">' + (d.lake
+            ? "Profilo non disponibile per questo giorno (la previsione del modello del lago arriva a circa 5 giorni). Indicativamente sotto i 40 m restano 8–9° tutto l’anno."
+            : "Profilo non disponibile per questo giorno.") + "</div>") +
       "</section>";
     const meteo = '<section class="sec"><h3>Meteo</h3><dl class="kv">' +
         kv("Ore più tranquille", d.best || "n/d") +
@@ -587,13 +628,16 @@ function render(data){
         kv("Pioggia", fmt(d.rainDay, 0, " mm") + " oggi · " + fmt(d.rain72, 0, " mm") + " nelle 72 h prima") +
         kv("Alba / tramonto", hhmm(d.sunrise) + " / " + hhmm(d.sunset)) +
         kv("Luna", moon(d.date)) +
-        (d.riv || []).filter(r => r.q != null).map(r => kv("Fiume " + r.name, r.q.toFixed(0) + " m³/s" +
-          (r.ratio != null ? " (" + r.ratio.toFixed(1).replace(".", ",") + "× normale)" : ""))).join("") +
+        (d.secchi ? kv("Trasparenza", "Secchi " + fmt(d.secchi.v, 1, " m") + " · satellite " + dayNum(d.secchi.date) +
+          (d.secchi.lakeWide ? " (media lago)" : "")) : "") +
+        (d.riv || []).filter(r => r.hist.some(v => v != null)).map(r => kv("Fiume " + r.name,
+          (r.q != null ? r.q.toFixed(0) + " m³/s" : "n/d") + (r.norm ? " · abituale " + fmt(r.norm, r.norm < 10 ? 1 : 0) : "") +
+          '<br><span class="hist">ultimi 7 giorni: ' + r.hist.map(v => v == null ? "–" : v.toFixed(0)).join(" · ") + "</span>")).join("") +
       "</dl></section>";
     const why = '<section class="sec"><h3>Perché questa visibilità</h3><ul class="why">' +
         d.visWhy.map(w => "<li>" + w + "</li>").join("") +
         "<li>Base del sito in giornata buona: " + d.base + " m (modificabile)</li>" +
-        (d.lake ? "<li>Sui laghi niente dati di onda: la stima usa vento, piogge e fiumi</li>" : "") +
+        (d.lake && !d.secchi ? "<li>Nessuna immagine satellitare recente: stima da vento, piogge e fiumi</li>" : "") +
       "</ul><h3>Perché questa superficie</h3><ul class=\"why\">" +
         d.surfWhy.map(w => "<li>" + w + "</li>").join("") +
         "<li>" + ((d.shelter || []).length ? "Riparato da: " + d.shelter.join(", ") : "Nessun ridosso impostato") + " (modificabile)</li>" +
@@ -625,7 +669,7 @@ function render(data){
 // Profilo di temperatura: tabella compatta + grafico temperatura/profondità
 const PROFILE_Z = [5, 10, 20, 30, 40, 50, 60, 80, 100];
 function profileBlock(d){
-  if (!d.deep) return '<div class="prof-note">In attesa del primo aggiornamento dei dati Copernicus.</div>';
+  if (!d.deep) return "";
   const pts = d.deep.profile.filter(p => p[1] != null);
   const rows = PROFILE_Z.map(z => [z, tAt(d, z)]).filter(r => r[1] != null);
   if (!rows.length) return "";
@@ -702,11 +746,18 @@ function readCache(s){
 function writeCache(s, c){ memCache.set(cacheKey(s), c); save(cacheKey(s), c); }
 
 function show(s, c){
-  const days = analyse(c.marine, c.wx, c.chl, s.base, c.rivers || [], s.shelter || []);
   const ts = tempData && tempData.spots ? tempData.spots[s.name] : null;
+  // trasparenza da satellite: la misura più recente sul sito, altrimenti la media del lago
+  let obs = null;
+  if (s.lake && tempData){
+    const lakeWide = (((tempData.lake || {}).secchi || {}).sentinel3 || {}).lake || [];
+    if (ts && ts.secchi && ts.secchi.length) obs = ts.secchi[0];
+    else if (lakeWide.length) obs = { date: lakeWide[0].date, v: lakeWide[0].mean, sat: "sentinel3", lakeWide: true };
+  }
+  const days = analyse(c.marine, c.wx, c.chl, s.base, c.rivers || [], s.shelter || [], obs);
   days.forEach(d => { d.deep = ts ? ts.days.find(x => x.date === d.date) || null : null; });
   lastData = { t: c.t, marine: c.marine, wx: c.wx, chl: c.chl, days,
-               deepInfo: ts ? { updated: tempData.updated, maxDepth: ts.maxDepth } : null };
+               deepInfo: ts ? { updated: tempData.updated, maxDepth: ts.maxDepth, lake: !!s.lake } : null };
   render(lastData);
 }
 

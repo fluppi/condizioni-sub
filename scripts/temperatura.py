@@ -89,6 +89,16 @@ for name, lat, lon in SPOTS:
     out["spots"][name] = {"lat": la, "lon": lo, "maxDepth": round(max_d) if max_d < z[-1] else None, "days": days}
     print(f"{name}: {len(days)} giorni, punto {la:.3f},{lo:.3f}, fondale modello ~{max_d:.0f} m")
 
+# Lago di Garda: profili e trasparenza da Alplakes (non blocca mai l'aggiornamento del mare)
+try:
+    import lago
+    extra = lago.collect()
+    out["spots"].update(extra.get("spots", {}))
+    out["lake"] = extra.get("lake", {})
+    out["lakeDebug"] = extra.get("debug", {})
+except Exception as e:  # noqa: BLE001
+    out["lakeDebug"] = {"errors": [f"lago.py: {type(e).__name__}: {e}"]}
+
 if not out["spots"]:
     raise SystemExit("Nessun dato scaricato: controlla le credenziali Copernicus")
 
