@@ -89,6 +89,73 @@ for name, lat, lon in SPOTS:
     out["spots"][name] = {"lat": la, "lon": lo, "maxDepth": round(max_d) if max_d < z[-1] else None, "days": days}
     print(f"{name}: {len(days)} giorni, punto {la:.3f},{lo:.3f}, fondale modello ~{max_d:.0f} m")
 
+# Mare: trasparenza dell'acqua da satellite (coefficiente KD490 di Copernicus, 1 km o 300 m).
+# Da KD490 si ricava una profondità di Secchi stimata: Zsd ≈ 0,87 / KD490.
+sea_dbg = {"errors": []}
+KD_DATASETS = ["cmems_obs-oc_med_bgc-transp_nrt_l3-multi-1km_P1D", "cmems_obs-oc_med_bgc-transp_nrt_l3-olci-300m_P1D"]
+kd_start = (today - dt.timedelta(days=10)).isoformat() + "T00:00:00"
+kd_end = today.isoformat() + "T23:59:59"
+for name, lat, lon in SPOTS:
+    rows, used = [], None
+    for ds_id in KD_DATASETS:
+        try:
+            ds = cm.open_dataset(
+                dataset_id=ds_id, username=user, password=pw, variables=["KD490"],
+                minimum_longitude=lon - 0.05, maximum_longitude=lon + 0.05,
+                minimum_latitude=lat - 0.05, maximum_latitude=lat + 0.05,
+                start_datetime=kd_start, end_datetime=kd_end,
+            )
+            kd = ds["KD490"].load()
+            for k, tm in enumerate(kd["time"].values):
+                v = np.asarray(kd.isel(time=k).values, dtype=float).ravel()
+                v = v[np.isfinite(v)]
+                v = v[(v > 0.01) & (v < 2)]
+                if v.size >= 3:                          # almeno 3 pixel d'acqua validi attorno al sito
+                    med = float(np.median(v))
+                    rows.append({"date": str(np.datetime_as_string(tm, unit="D")), "v": round(0.87 / med, 1),
+                                 "kd": round(med, 4), "n": int(v.size), "sat": "copernicus", "est": True})
+            if rows:
+                used = ds_id
+                break
+        except Exception as e:  # noqa: BLE001
+            sea_dbg["errors"].append(f"KD490 {name} ({ds_id.split('_')[-2]}): {type(e).__name__}: {str(e)[:140]}")
+    rows.sort(key=lambda r: r["date"], reverse=True)
+    out["spots"].setdefault(name, {"lat": lat, "lon": lon, "maxDepth": None, "days": []})["secchi"] = rows
+    sea_dbg.setdefault("kd", {})[name] = {"dataset": used, "misure": len(rows), "ultima": rows[0] if rows else None}
+    print(f"{name}: {len(rows)} misure di trasparenza da satellite")
+
+# Solo ricognizione: quali dati costieri ad alta risoluzione (100 m) esistono, per un prossimo passo
+def _walk(o, found):
+    if isinstance(o, dict):
+        if "dataset_id" in o:
+            names = []
+            def _vars(x):
+                if isinstance(x, dict):
+                    if "short_name" in x:
+                        names.append(x["short_name"])
+                    for y in x.values():
+                        _vars(y)
+                elif isinstance(x, list):
+                    for y in x:
+                        _vars(y)
+            _vars(o)
+            found[o["dataset_id"]] = sorted(set(n for n in names if n))[:12]
+        for y in o.values():
+            _walk(y, found)
+    elif isinstance(o, list):
+        for y in o:
+            _walk(y, found)
+
+try:
+    cat = cm.describe(product_id="OCEANCOLOUR_MED_BGC_HR_L3_NRT_009_205", disable_progress_bar=True)
+    data = cat.model_dump() if hasattr(cat, "model_dump") else json.loads(cat.json())
+    found = {}
+    _walk(data, found)
+    sea_dbg["hr"] = found
+except Exception as e:  # noqa: BLE001
+    sea_dbg["errors"].append(f"catalogo HR: {type(e).__name__}: {str(e)[:140]}")
+out["seaDebug"] = sea_dbg
+
 # Lago di Garda: profili e trasparenza da Alplakes (non blocca mai l'aggiornamento del mare)
 try:
     import lago
