@@ -18,6 +18,8 @@ SPOTS = [
     ("Riva del Garda", 45.855, 10.852),
     ("Salò", 45.600, 10.555),
     ("Assenza", 45.700, 10.740),
+    ("Tempesta", 45.835, 10.852),
+    ("Campione del Garda", 45.757, 10.770),
 ]
 DEPTHS = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100]
 SECCHI_FALLBACK = {"sentinel3": "Zsd_lee", "sentinel2": "Z490"}   # usati se l'elenco dei parametri non è leggibile

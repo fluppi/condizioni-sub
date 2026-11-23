@@ -283,7 +283,11 @@ const DEFAULT_SPOTS = [
   { name: "Santa Margherita Ligure", lat: 44.328, lon: 9.218, base: 18, rivers: [{ name: "Entella", lat: 44.330, lon: 9.345, w: 0.5 }], shelter: ["SSO", "SO", "OSO", "O", "ONO", "NO", "NNO", "N", "NNE", "NE"] },
   { name: "Riva del Garda", lat: 45.875, lon: 10.850, lake: true, base: 10, rivers: [{ name: "Sarca", lat: 45.900, lon: 10.875, w: 1 }], shelter: ["NNO", "N", "NNE"] },
   { name: "Salò", lat: 45.605, lon: 10.525, lake: true, base: 7, rivers: [{ name: "Toscolano", lat: 45.660, lon: 10.600, w: 0.4 }], shelter: ["OSO", "O", "ONO"] },
-  { name: "Assenza", lat: 45.703, lon: 10.760, lake: true, base: 10, rivers: [{ name: "Sarca", lat: 45.900, lon: 10.875, w: 0.15 }], shelter: ["ENE", "E", "ESE"] }
+  { name: "Assenza", lat: 45.703, lon: 10.760, lake: true, base: 10, rivers: [{ name: "Sarca", lat: 45.900, lon: 10.875, w: 0.15 }], shelter: ["ENE", "E", "ESE"] },
+  // Tempesta (Nago-Torbole): sponda est sotto il Baldo, 4 km a sud della foce del Sarca; base dalle misure Project Baseline (mediana 11 m)
+  { name: "Tempesta", lat: 45.8376, lon: 10.8595, lake: true, base: 11, rivers: [{ name: "Sarca", lat: 45.900, lon: 10.875, w: 0.5 }], shelter: ["ENE", "E", "ESE"] },
+  // Campione del Garda (Tremosine): sponda ovest sotto la falesia; ridosso e peso del Sarca indicativi
+  { name: "Campione del Garda", lat: 45.7576, lon: 10.7503, lake: true, base: 10, rivers: [{ name: "Sarca", lat: 45.900, lon: 10.875, w: 0.2 }], shelter: ["OSO", "O", "ONO"] }
 ];
 const WINDOW_START = 8, WINDOW_END = 18;        // fascia oraria immersioni
 // Clorofilla satellitare (best effort): dataset ERDDAP e nome variabile.
