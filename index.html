@@ -542,9 +542,9 @@ function scoreVis(d){
     if (val == null) return;
     for (const [thr, k] of rules) if (val > thr) { f *= k; fac.push({ ic, t: text(val), pct: Math.round((1 - k) * 100), prot }); return; }
   };
-  // Torbidità sottocosta (pixel da 100 m): penalità prudente e a scalini, finché non è tarata sui valori reali.
-  // Sotto 2 FNU il dato vicino a riva è poco affidabile e non cambia nulla.
-  if (d.turb) step(d.turb.tur, [[8, 0.4], [4, 0.6], [2, 0.8]], "pin", () => "costa torbida " + dayNum(d.turb.date));
+  // Torbidità sottocosta (pixel da 100 m): per ora è solo mostrata nel dettaglio (TURB_IN_STIMA = false).
+  // Le prime letture reali (nov 2026: 3–11 FNU con Secchi a 1 km di 9–14 m) sono troppo alte per fidarsi delle soglie.
+  if (TURB_IN_STIMA && d.turb) step(d.turb.tur, [[8, 0.4], [4, 0.6], [2, 0.8]], "pin", () => "costa torbida " + dayNum(d.turb.date));
   step(d.secchi ? d.rainVis : d.rain72, [[60, 0.4], [30, 0.6], [15, 0.75], [5, 0.9]], "rain", v => "pioggia " + v.toFixed(0) + " mm");
   // onda da un settore riparato: al sito arriva circa la metà, e rimescola meno il fondo
   const prevProt = sheltered(d.prevWaveDir, d.shelter), dayProt = sheltered(d.waveDir, d.shelter);
@@ -615,7 +615,11 @@ const meter = (n, label) => '<span class="meter ' + toneOf(n) + '" role="img" ar
 const visLevel = r => r >= 0.85 ? 5 : r >= 0.65 ? 4 : r >= 0.45 ? 3 : r >= 0.3 ? 2 : 1;
 const clarityLevel = m => m >= 12 ? 5 : m >= 8 ? 4 : m >= 5 ? 3 : m >= 3 ? 2 : 1;
 const surfLevel = s => Math.max(1, Math.round(s));
+const TURB_IN_STIMA = false;   // true = la torbidità sottocosta riduce la stima di visibilità (da riaccendere dopo la taratura)
 const turbLevel = t => t < 0.5 ? 5 : t < 1 ? 4 : t < 2 ? 3 : t < 4 ? 2 : 1;
+// andamento rispetto all’immagine precedente: freccia su = più torbida, giù = più pulita
+const turbTrend = t => t.prev == null || t.prev <= 0 ? "" :
+  (t.tur > t.prev * 1.25 ? arrowFrom(180) : t.tur < t.prev * 0.8 ? arrowFrom(0) : "") + " prima " + fmt(t.prev, 1);
 const turbWord = t => ["", "molto torbida", "torbida", "velata", "pulita", "molto pulita"][turbLevel(t)];
 const clarityWord = m => ["", "molto torbida", "torbida", "media", "limpida", "molto limpida"][clarityLevel(m)];
 const planktonWord = c => c == null ? null : c < 0.3 ? "Poco" : c < 1 ? "Medio" : "Molto";
@@ -777,8 +781,9 @@ function render(data){
         tile(ico("sun"), hhmm(d.sunrise) + "–" + hhmm(d.sunset), moon(d.date)) +
         (d.secchi ? tile(ico("eye"), fmt(d.secchi.v, d.secchi.est ? 0 : 1, " m"),
           meter(clarityLevel(d.secchi.v), "Acqua " + clarityWord(d.secchi.v)) + " " + dayNum(d.secchi.date)) : "") +
-        (d.turb ? tile(ico("pin"), "costa", meter(turbLevel(d.turb.tur), "Acqua sottocosta " + turbWord(d.turb.tur) +
-          " (torbidità " + fmt(d.turb.tur, 1) + ")") + " " + dayNum(d.turb.date)) : "") +
+        (d.turb ? tile(ico("pin"), fmt(d.turb.tur, 1) + " <small style=\"display:inline;font-weight:400\">FNU</small>",
+          '<span title="Torbidità sottocosta da satellite (pixel da 100 m). Dato non ancora tarato: non entra nella stima.">costa ' +
+          dayNum(d.turb.date) + "</span>" + turbTrend(d.turb)) : "") +
       "</div>" +
       ((d.riv || []).some(r => r.hist.some(v => v != null))
         ? "<h3>" + ico("drop", "mut") + "Fiumi</h3>" + d.riv.filter(r => r.hist.some(v => v != null)).map(riverBlock).join("") : "") +
@@ -933,7 +938,7 @@ function daysFor(s, c){
     if (ts && ts.secchi && ts.secchi.length) obs = ts.secchi[0];
     else if (lakeWide.length) obs = { date: lakeWide[0].date, v: lakeWide[0].mean, sat: "sentinel3", lakeWide: true };
   }
-  const turbObs = ts && ts.turb && ts.turb.length ? ts.turb[0] : null;
+  const turbObs = ts && ts.turb && ts.turb.length ? { ...ts.turb[0], prev: ts.turb[1] ? ts.turb[1].tur : null } : null;
   const days = analyse(c.marine, c.wx, c.chl, s.base, c.rivers || [], s.shelter || [], obs, turbObs);
   days.forEach(d => { d.deep = ts ? (ts.days || []).find(x => x.date === d.date) || null : null; });
   return { days, ts };
