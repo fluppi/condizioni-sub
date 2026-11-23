@@ -1,0 +1,38 @@
+data,sito,tipo,valore,n,extra
+2026-10-24,Lago di Garda,secchi_lago,7.9,,p10=6.6;p90=9.0;cover=0.79
+2026-10-27,Lago di Garda,secchi_lago,8.0,,p10=7.1;p90=8.8;cover=0.8
+2026-10-29,Lago di Garda,secchi_lago,8.5,,p10=7.6;p90=9.4;cover=0.76
+2026-10-31,Lago di Garda,secchi_lago,8.8,,p10=7.9;p90=9.6;cover=0.77
+2026-11-05,Lago di Garda,secchi_lago,10.1,,p10=8.9;p90=11.6;cover=0.67
+2026-11-16,Lavagna,secchi,13.5,7,kd=0.0642
+2026-11-18,Lavagna,secchi,12.4,29,kd=0.0703
+2026-11-18,Lavagna,tur,3.94,883,p90=18.05
+2026-11-18,Santa Margherita Ligure,secchi,10.5,16,kd=0.0828
+2026-11-18,Santa Margherita Ligure,tur,11.05,237,p90=15.05
+2026-11-19,Cavalaire-sur-Mer,secchi,18.4,23,kd=0.0473
+2026-11-19,Lavagna,secchi,13.7,26,kd=0.0637
+2026-11-19,Santa Margherita Ligure,secchi,12.4,19,kd=0.0703
+2026-11-20,Assenza,secchi,15.5,25,sat=sentinel3
+2026-11-20,Cavalaire-sur-Mer,secchi,18.7,29,kd=0.0465
+2026-11-20,Lago di Garda,secchi_lago,14.1,,p10=10.2;p90=17.2;cover=0.73
+2026-11-20,Lavagna,secchi,11.8,36,kd=0.074
+2026-11-20,Riva del Garda,secchi,13.2,25,sat=sentinel3
+2026-11-20,Salò,secchi,11.5,5,sat=sentinel3
+2026-11-20,Santa Margherita Ligure,secchi,9.3,13,kd=0.0938
+2026-11-21,Assenza,secchi,14.7,19,sat=sentinel3
+2026-11-21,Lago di Garda,secchi_lago,14.3,,p10=11.1;p90=17.1;cover=0.54
+2026-11-21,Lavagna,tur,6.78,830,p90=14.89
+2026-11-21,Riva del Garda,secchi,13.3,20,sat=sentinel3
+2026-11-21,Salò,secchi,13.8,5,sat=sentinel3
+2026-11-21,Santa Margherita Ligure,tur,3.29,489,p90=7.12
+2026-11-22,Cavalaire-sur-Mer,secchi,18.9,25,kd=0.046
+2026-11-23,Assenza,t5,15.24,,
+2026-11-23,Assenza,termoclino,56,,
+2026-11-23,Cavalaire-sur-Mer,t5,17.44,,
+2026-11-23,Lavagna,t5,18.74,,
+2026-11-23,Lavagna,termoclino,76,,
+2026-11-23,Riva del Garda,t5,14.98,,
+2026-11-23,Riva del Garda,termoclino,58,,
+2026-11-23,Salò,t5,15.51,,
+2026-11-23,Salò,termoclino,66,,
+2026-11-23,Santa Margherita Ligure,t5,18.48,,
