@@ -165,6 +165,14 @@ except Exception as e:  # noqa: BLE001
 if not out["spots"]:
     raise SystemExit("Nessun dato scaricato: controlla le credenziali Copernicus")
 
+# Storico delle misure (data/storico.csv): non blocca mai il salvataggio del file giornaliero
+try:
+    import storico
+    tot, new = storico.update(out, "data/storico.csv")
+    print(f"storico: {tot} righe, {new} nuove")
+except Exception as e:  # noqa: BLE001
+    out.setdefault("seaDebug", {}).setdefault("errors", []).append(f"storico: {type(e).__name__}: {e}")
+
 os.makedirs("data", exist_ok=True)
 with open("data/temperatura.json", "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, indent=1)

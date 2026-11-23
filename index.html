@@ -34,7 +34,7 @@ h1,h2,.num{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif}
 h1{font-size:2rem;font-weight:700;margin:4px 0 2px;line-height:1.1}
 h2{font-size:1.25rem;font-weight:600;margin:24px 0 8px}
 .sub{color:var(--muted);font-size:.9rem;margin:0}
-button,input{font:inherit;color:inherit}
+button,input,select{font:inherit;color:inherit}
 button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 14px}
 button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-offset:2px}
 /* Siti: gruppi Mare / Lago che vanno a capo, niente barra di scorrimento */
@@ -163,6 +163,22 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-of
 .results{list-style:none;padding:0;margin:8px 0 0}
 .results button{border-radius:8px;width:100%;text-align:left;margin-top:4px}
 .msg{color:var(--coral);font-size:.92rem}
+.msg:empty{display:none}
+/* Diario delle immersioni */
+.add select{flex:0 0 auto;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.log{list-style:none;margin:10px 0 0;padding:0}
+.log li{display:grid;grid-template-columns:3.4rem minmax(0,1fr) auto auto auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:.9rem}
+.log .l-d{color:var(--muted);font-size:.8rem}
+.log .l-s{min-width:0;overflow-wrap:anywhere;line-height:1.3}
+.log .l-s small{display:block;color:var(--muted);font-size:.78rem}
+.log .l-v{text-align:right;white-space:nowrap}
+.log .l-v b{display:block;font:700 1.15rem/1 "Barlow Condensed",sans-serif}
+.log .l-v small{color:var(--muted);font-size:.74rem}
+.log a{color:var(--sea);font-size:.78rem;text-decoration:none;white-space:nowrap}
+.log .l-x{border:none;background:transparent;color:var(--muted);padding:4px 6px}
+.log-sum{color:var(--muted);font-size:.84rem;margin:10px 0 0}
+.log-sum:empty{display:none}
+.log-tools button{border:none;background:transparent;color:var(--muted);font-size:.84rem;padding:4px 10px 4px 0}
 footer{color:var(--muted);font-size:.8rem;margin:32px 0 16px}
 footer a{color:var(--sea)}
 </style>
@@ -195,6 +211,7 @@ footer a{color:var(--sea)}
   <div class="toolbar">
     <button id="btnAdd" aria-expanded="false">＋ Aggiungi sito</button>
     <button id="btnRefresh">↻ Aggiorna</button>
+    <button id="btnLog" aria-expanded="false">✎ Ho visto…</button>
     <button id="btnBase">Visibilità tipica</button>
     <button id="btnShelter">Ridosso</button>
     <button id="btnRemove">Rimuovi sito</button>
@@ -215,6 +232,24 @@ footer a{color:var(--sea)}
       <button id="btnGeo">Usa la mia posizione</button>
     </div>
     <p class="msg" id="addMsg"></p>
+  </section>
+
+  <section class="add" id="logBox" hidden>
+    <div class="row" style="margin-top:0">
+      <select id="logDay" aria-label="Giorno dell’immersione"></select>
+      <input id="logM" placeholder="Visibilità vista (m)" inputmode="decimal">
+      <input id="logZ" placeholder="Profondità (m)" inputmode="decimal">
+      <input id="logNote" placeholder="Nota">
+      <button id="btnLogSave">Salva</button>
+    </div>
+    <p class="msg" id="logMsg"></p>
+    <p class="log-sum" id="logSum"></p>
+    <ul class="log" id="logList"></ul>
+    <div class="row log-tools">
+      <button id="btnLogCopy">Copia</button>
+      <button id="btnLogDown">Scarica</button>
+      <button id="btnLogImport">Importa</button>
+    </div>
   </section>
 
   <section class="where" id="where" hidden></section>
@@ -295,13 +330,13 @@ function marineURL(s, days = 8){
   return "https://marine-api.open-meteo.com/v1/marine?latitude=" + s.lat + "&longitude=" + s.lon +
     "&hourly=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction," +
     "wind_wave_height,sea_surface_temperature,ocean_current_velocity,ocean_current_direction" +
-    "&timezone=auto&past_days=3&forecast_days=" + days + "&cell_selection=sea";
+    "&timezone=auto&past_days=4&forecast_days=" + days + "&cell_selection=sea";
 }
 function weatherURL(s){
   return "https://api.open-meteo.com/v1/forecast?latitude=" + s.lat + "&longitude=" + s.lon +
     "&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation,cloud_cover,temperature_2m" +
     "&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum" +
-    "&timezone=auto&past_days=3&forecast_days=8&wind_speed_unit=kn";
+    "&timezone=auto&past_days=4&forecast_days=8&wind_speed_unit=kn";
 }
 
 async function getChlorophyll(s){
@@ -370,12 +405,12 @@ function bottomSpeed(h, t, depth = 10){
 const RIVER_DECAY = [1, 1, 0.8, 0.6, 0.45, 0.3];
 const dayDiff = (a, b) => Math.round((new Date(b + "T12:00:00Z") - new Date(a + "T12:00:00Z")) / 864e5);
 
-function analyse(marine, wx, chl, base, rivers = [], shelter = [], obs = null, turbObs = null){
+function analyse(marine, wx, chl, base, rivers = [], shelter = [], obs = null, turbObs = null, from = null){
   const mh = marine ? marine.hourly : null, wh = wx.hourly;
   const mi = mh ? index(mh) : new Map();
   const times = wh.time; // asse orario di riferimento
   const today = (times.find(t => t.slice(0, 10) >= localToday(wx)) || times[times.length - 1]).slice(0, 10);
-  const dates = [...new Set(times.map(t => t.slice(0, 10)))].filter(d => d >= today);
+  const dates = [...new Set(times.map(t => t.slice(0, 10)))].filter(d => d >= (from || today));   // from: anche un giorno passato (diario)
   const pick = (arr, t) => { if (!arr) return null; const i = mi.get(t); return i == null ? null : arr[i]; };
   const M = k => mh ? mh[k] : null;
   // portata di riferimento: il maggiore tra mediana e media dei 60 giorni passati.
@@ -612,6 +647,8 @@ const arrowTo = deg => deg == null ? "" : arrowFrom(deg + 180);
 const toneOf = n => n >= 4 ? "good" : n >= 3 ? "mid" : "bad";
 const meter = (n, label) => '<span class="meter ' + toneOf(n) + '" role="img" aria-label="' + label + '" title="' + label + '">' +
   [1, 2, 3, 4, 5].map(i => "<i" + (i <= n ? ' class="on"' : "") + "></i>").join("") + "</span>";
+// forchetta di visibilità: quando i due estremi coincidono non scrive «1–1»
+const rng = d => d.visHi > d.visLo ? d.visLo + "–" + d.visHi : d.visHi <= 1 ? "≤ 1" : "~" + d.visHi;
 const visLevel = r => r >= 0.85 ? 5 : r >= 0.65 ? 4 : r >= 0.45 ? 3 : r >= 0.3 ? 2 : 1;
 const clarityLevel = m => m >= 12 ? 5 : m >= 8 ? 4 : m >= 5 ? 3 : m >= 3 ? 2 : 1;
 const surfLevel = s => Math.max(1, Math.round(s));
@@ -689,7 +726,7 @@ function renderWhere(){
         '<span class="w-name"><b>' + r.s.name + "</b><small>" + (r.s.lake ? "lago" : "mare") + " · " + Math.round(distKm(r.s)) + " km</small></span>" +
         surfTag(r.d) +
         '<span class="w-temp">' + (waterT(r.d) != null ? ico("temp", "mut") + " " + fmt(waterT(r.d), 0, "°") : "") + "</span>" +
-        '<span class="w-vis">' + r.d.visLo + "–" + r.d.visHi + " m" + meter(visLevel(r.d.visRatio), "Visibilità " + r.d.visLabel.toLowerCase()) + "</span>" +
+        '<span class="w-vis">' + rng(r.d) + " m" + meter(visLevel(r.d.visRatio), "Visibilità " + r.d.visLabel.toLowerCase()) + "</span>" +
       "</button></li>").join("") + "</ol>" +
     (rows.length > 3 ? '<button class="w-more">' + (whereAll ? "meno ▴" : "tutti i " + rows.length + " siti ▾") + "</button>" : "") +
     (have.length < spots.length ? '<small class="w-name" style="display:block;padding-top:6px"><small>carico gli altri siti…</small></small>' : "");
@@ -706,11 +743,11 @@ function heroHTML(days){
   const rank = x => Math.min(x.visRatio, 1.3) * (x.surf / 5);
   const best = days.slice().sort((a, b) => rank(b) - rank(a))[0];
   const bestTag = best !== d && rank(best) > rank(d) * 1.15
-    ? '<span class="tag big" title="Giorno migliore in arrivo">' + ico("star") + dayName(best.date) + " " + new Date(best.date + "T12:00").getDate() + " · " + best.visLo + "–" + best.visHi + " m</span>" : "";
+    ? '<span class="tag big" title="Giorno migliore in arrivo">' + ico("star") + dayName(best.date) + " " + new Date(best.date + "T12:00").getDate() + " · " + rng(best) + " m</span>" : "";
   return '<div class="hero-top"><div class="hero-main"><span class="eyebrow">Oggi · ' + dayNum(d.date) + "</span>" +
-    '<div class="hero-num">' + d.visLo + "–" + d.visHi + "<small> m</small></div>" +
+    '<div class="hero-num">' + rng(d) + "<small> m</small></div>" +
     meter(visLevel(d.visRatio), "Visibilità " + d.visLabel.toLowerCase()) + "</div>" +
-    '<div class="hero-side"><span class="tag big ' + verdict[1] + '">' + ico(verdict[2]) + verdict[0] + "</span>" + surfTag(d, true) + bestTag + "</div></div>";
+    '<div class="hero-side"><span class="tag big ' + verdict[1] + '">' + ico(verdict[2]) + verdict[0] + "</span>" + surfTag(d, true) + seenTag(d.date) + bestTag + "</div></div>";
 }
 
 function render(data){
@@ -792,7 +829,7 @@ function render(data){
       (f.prot ? " " + ico("shield", "mut") : "") + (f.pct ? " <em>−" + f.pct + "%</em>" : "") + "</span>";
     const why = '<section class="sec"><h3>' + ico("eye", "mut") + "Visibilità " + meter(visLevel(d.visRatio), d.visLabel) + '</h3><div class="facs">' +
         d.visFac.map(facChip).join("") + (d.visFac.length === 1 ? '<span class="fac good">' + ico("check") + "nessuna penalità</span>" : "") +
-        '<span class="fac">→ ' + d.visLo + "–" + d.visHi + " m · ↕ " + d.visVert + " m</span>" +
+        '<span class="fac">→ ' + rng(d) + " m · ↕ " + d.visVert + " m</span>" +
       "</div><h3>" + ico("wave", "mut") + "Superficie " + meter(surfLevel(d.surf), d.surfLabel) + '</h3><div class="surf-row">' +
         rose(d) + '<div class="facs">' + d.surfFac.map(facChip).join("") + "</div></div></section>";
 
@@ -800,7 +837,7 @@ function render(data){
       '<button aria-expanded="false">' +
         '<span class="d-date"><b>' + (k === 0 ? "Oggi" : dayName(d.date)) + "</b><small>" + dayNum(d.date) + "</small>" +
           '<span class="wx" title="' + weatherText(d.code)[1] + '">' + weatherText(d.code)[0] + "</span></span>" +
-        '<span class="d-vis"><span class="vis-num">' + d.visLo + "–" + d.visHi + " <small>m</small></span>" +
+        '<span class="d-vis"><span class="vis-num">' + rng(d) + " <small>m</small></span>" +
           meter(visLevel(d.visRatio), "Visibilità " + d.visLabel.toLowerCase()) + "</span>" +
         '<span class="d-cols">' + cols + "</span>" +
         '<span class="chev" aria-hidden="true">›</span>' +
@@ -921,6 +958,7 @@ function drawChart(canvas, d, marine, wx){
 let reqId = 0;
 const TTL = 20 * 60 * 1000, CHL_TTL = 6 * 3600 * 1000;   // dati meteo 20 min, clorofilla 6 h
 const memCache = new Map();
+const CACHE_V = 3;   // 3: quattro giorni passati, per poter ricalcolare la giornata di ieri nel diario
 const cacheKey = s => "condizioniSub.cache." + s.lat + "," + s.lon;
 function readCache(s){
   let c = memCache.get(cacheKey(s));
@@ -930,16 +968,20 @@ function readCache(s){
 function writeCache(s, c){ memCache.set(cacheKey(s), c); save(cacheKey(s), c); }
 
 // giorni calcolati per un sito a partire dai dati salvati (più profili e trasparenza dal file giornaliero)
-function daysFor(s, c){
+// from = un giorno passato (diario): usa le misure satellitari disponibili fino a quel giorno
+function daysFor(s, c, from = null){
   const ts = tempData && tempData.spots ? tempData.spots[s.name] : null;
+  const upTo = a => (a || []).filter(x => !from || x.date <= from);
   let obs = null;
   if (tempData){
-    const lakeWide = s.lake ? (((tempData.lake || {}).secchi || {}).sentinel3 || {}).lake || [] : [];
-    if (ts && ts.secchi && ts.secchi.length) obs = ts.secchi[0];
+    const lakeWide = upTo(s.lake ? (((tempData.lake || {}).secchi || {}).sentinel3 || {}).lake : []);
+    const own = upTo(ts && ts.secchi);
+    if (own.length) obs = own[0];
     else if (lakeWide.length) obs = { date: lakeWide[0].date, v: lakeWide[0].mean, sat: "sentinel3", lakeWide: true };
   }
-  const turbObs = ts && ts.turb && ts.turb.length ? { ...ts.turb[0], prev: ts.turb[1] ? ts.turb[1].tur : null } : null;
-  const days = analyse(c.marine, c.wx, c.chl, s.base, c.rivers || [], s.shelter || [], obs, turbObs);
+  const tu = upTo(ts && ts.turb);
+  const turbObs = tu.length ? { ...tu[0], prev: tu[1] ? tu[1].tur : null } : null;
+  const days = analyse(c.marine, c.wx, c.chl, s.base, c.rivers || [], s.shelter || [], obs, turbObs, from);
   days.forEach(d => { d.deep = ts ? (ts.days || []).find(x => x.date === d.date) || null : null; });
   return { days, ts };
 }
@@ -961,7 +1003,7 @@ async function fetchSpot(s, prev){
   ]);
   if (marine && (!marine.hourly || marine.hourly.wave_height.every(v => v == null)))
     throw new Error("Nessun dato marino per questo punto: sposta le coordinate un po’ più al largo.");
-  const c = { v: 2, t: Date.now(), marine, wx, rivers, chl: prev ? prev.chl : null, chlT: prev ? prev.chlT : 0 };
+  const c = { v: CACHE_V, t: Date.now(), marine, wx, rivers, chl: prev ? prev.chl : null, chlT: prev ? prev.chlT : 0 };
   writeCache(s, c);
   return c;
 }
@@ -973,7 +1015,7 @@ async function loadOthers(){
   for (const s of spots.slice()){
     if (run !== othersRun) return;
     let c = readCache(s);
-    if (c && c.v !== 2) c = null;
+    if (c && c.v !== CACHE_V) c = null;
     if (!c || Date.now() - c.t > 60 * 60 * 1000){
       try { c = await fetchSpot(s, c); } catch { /* resta il dato salvato, se c’è */ }
     }
@@ -989,12 +1031,12 @@ async function refresh(force = false){
   getTemps().then(changed => {
     if (!changed) return;
     const cc = readCache(s);
-    if (stillCurrent() && cc && cc.v === 2) show(s, cc);
+    if (stillCurrent() && cc && cc.v === CACHE_V) show(s, cc);
     loadOthers();
   });
   $("title").textContent = s.name;
   let c = readCache(s);
-  if (c && c.v !== 2) c = null;              // cache di una versione precedente
+  if (c && c.v !== CACHE_V) c = null;              // cache di una versione precedente
   const fresh = c && Date.now() - c.t < TTL;
 
   if (c) show(s, c);                         // mostra subito l’ultimo dato salvato
@@ -1032,6 +1074,109 @@ async function refresh(force = false){
     show(s, c);
   }
 }
+
+/* ---------- Diario: la visibilità vista davvero, per tarare le stime ---------- */
+const LOG_KEY = "condizioniSub.diario", REPO = "fluppi/condizioni-sub";
+let diary = load(LOG_KEY, []);
+const num = v => parseFloat(String(v).replace(",", "."));
+const r2 = v => v == null || !isFinite(v) ? null : Math.round(v * 100) / 100;
+const escH = t => String(t).replace(/[&<>"']/g, ch => "&#" + ch.charCodeAt(0) + ";");
+const todayIso = () => lastData ? localToday(lastData.wx) : new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+const seenTag = date => {
+  const e = diary.find(x => x.site === spots[sel].name && x.date === date);
+  return e ? '<span class="tag big good" title="Visibilità vista in immersione">' + ico("check") + "visto " + fmt(e.seen, e.seen % 1 ? 1 : 0, " m") + "</span>" : "";
+};
+
+// fotografia della stima e dei dati che l’hanno prodotta: serve a rifare i conti quando si tarano le costanti
+function snapshot(s, d){
+  return {
+    est: { m: r2(d.visM), lo: d.visLo, hi: d.visHi, base: s.base, label: d.visLabel },
+    in: {
+      secchi: d.secchi ? { v: d.secchi.v, date: d.secchi.date, sat: d.secchi.sat, lakeWide: d.secchi.lakeWide || undefined } : null,
+      turb: d.turb ? { tur: d.turb.tur, date: d.turb.date } : null,
+      chl: r2(d.chl), rain72: r2(d.rain72), rainVis: r2(d.rainVis),
+      prevU: r2(d.prevU), prevHs: r2(d.prevHs), prevProt: sheltered(d.prevWaveDir, d.shelter),
+      dayU: r2(d.dayU), hs: r2(d.hs), tp: r2(d.tp), dayProt: sheltered(d.waveDir, d.shelter),
+      gust: r2(d.gust), prevGust: r2(d.prevGust), surf: d.surf,
+      riv: (d.riv || []).map(r => ({ name: r.name, w: r.w, ratio: r2(r.ratio) })),
+      thermo: d.deep ? d.deep.thermocline : null
+    },
+    fac: (d.visFac || []).map(f => f.t + (f.pct ? " −" + f.pct + "%" : ""))
+  };
+}
+// la giornata (anche di ieri) ricalcolata dai dati salvati del sito
+function dayFor(s, date){
+  const c = readCache(s);
+  if (!c || c.v !== CACHE_V) return null;
+  try { return daysFor(s, c, date).days.find(d => d.date === date) || null; } catch { return null; }
+}
+const issueURL = e => "https://github.com/" + REPO + "/issues/new?title=" +
+  encodeURIComponent("Immersione " + e.site + " " + e.date + ": " + fmt(e.seen, 1, " m")) +
+  "&body=" + encodeURIComponent("```json\n" + JSON.stringify(e) + "\n```");
+
+function renderLog(){
+  const t = todayIso();
+  $("logDay").innerHTML = [[t, "Oggi"], [addDays(t, -1), "Ieri"]].map(([d, l]) => '<option value="' + d + '">' + l + " · " + dayNum(d) + "</option>").join("");
+  $("logList").innerHTML = diary.map((e, i) =>
+    '<li><span class="l-d">' + dayNum(e.date) + "</span>" +
+    '<span class="l-s">' + escH(e.site) + (e.depth || e.note ? "<small>" + [e.depth ? "a " + fmt(e.depth, 0, " m") : "", e.note ? escH(e.note) : ""].filter(Boolean).join(" · ") + "</small>" : "") + "</span>" +
+    '<span class="l-v"><b>' + fmt(e.seen, e.seen % 1 ? 1 : 0, " m") + "</b><small>stima " + (e.est ? rng({ visLo: e.est.lo, visHi: e.est.hi }) + " m" : "n/d") + "</small></span>" +
+    '<a href="' + issueURL(e) + '" target="_blank" rel="noopener" title="Salva questa immersione nel repository GitHub (pubblico)">GitHub ↗</a>' +
+    '<button class="l-x" data-i="' + i + '" aria-label="Elimina">✕</button></li>').join("");
+  $("logList").querySelectorAll(".l-x").forEach(b => b.onclick = () => {
+    if (!confirm("Eliminare questa immersione dal diario?")) return;
+    diary.splice(+b.dataset.i, 1); save(LOG_KEY, diary); renderLog(); if (lastData) render(lastData);
+  });
+  // quanto sbaglia la stima, in media: visto / stimato
+  const rs = diary.filter(e => e.est && e.est.m > 0).map(e => e.seen / e.est.m);
+  $("logSum").textContent = rs.length >= 3
+    ? rs.length + " immersioni: in media visto × " + fmt(rs.reduce((a, b) => a + b, 0) / rs.length, 2) + " rispetto alla stima" : "";
+}
+function mergeDiary(list){
+  const ids = new Set(diary.map(e => e.id));
+  const add = list.filter(e => e && e.id && e.site && e.date && isFinite(e.seen) && !ids.has(e.id));
+  diary = diary.concat(add).sort((a, b) => b.date.localeCompare(a.date) || String(b.t).localeCompare(String(a.t)));
+  save(LOG_KEY, diary);
+  return add.length;
+}
+$("btnLog").onclick = () => {
+  const open = $("logBox").hidden; $("logBox").hidden = !open;
+  $("btnLog").setAttribute("aria-expanded", open);
+  if (open) { $("logMsg").textContent = ""; renderLog(); $("logM").focus(); }
+};
+$("btnLogSave").onclick = () => {
+  const s = spots[sel], date = $("logDay").value, m = num($("logM").value), z = num($("logZ").value);
+  if (!(m >= 0.5 && m <= 60)) { $("logMsg").textContent = "Scrivi i metri di visibilità che hai visto (da 0,5 a 60)."; return; }
+  const d = dayFor(s, date);
+  const e = { id: date + "|" + s.name + "|" + Date.now().toString(36), site: s.name, lat: s.lat, lon: s.lon, lake: s.lake ? true : undefined,
+              date, seen: m, depth: z > 0 ? z : null, note: $("logNote").value.trim() || null, t: new Date().toISOString(),
+              ...(d ? snapshot(s, d) : { est: null }) };
+  mergeDiary([e]);
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});   // chiede al browser di non cancellare i dati
+  $("logM").value = $("logZ").value = $("logNote").value = "";
+  $("logMsg").textContent = d ? "" : "Salvato senza stima: i dati del sito per quel giorno non erano caricati.";
+  renderLog(); if (lastData) render(lastData);
+};
+$("btnLogCopy").onclick = async () => {
+  const txt = JSON.stringify(diary);
+  try { await navigator.clipboard.writeText(txt); $("logMsg").textContent = "Diario copiato (" + diary.length + " immersioni)."; }
+  catch { prompt("Copia il diario:", txt); }
+};
+$("btnLogDown").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(diary, null, 1)], { type: "application/json" }));
+  a.download = "diario-sub-" + todayIso() + ".json"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+};
+$("btnLogImport").onclick = () => {
+  const v = prompt("Incolla il diario copiato da un altro dispositivo:");
+  if (!v) return;
+  try {
+    const list = JSON.parse(v);
+    if (!Array.isArray(list)) throw new Error();
+    $("logMsg").textContent = "Aggiunte " + mergeDiary(list) + " immersioni.";
+    renderLog(); if (lastData) render(lastData);
+  } catch { $("logMsg").textContent = "Il testo incollato non è un diario valido."; }
+};
 
 /* ---------- Gestione siti ---------- */
 function addSpot(name, lat, lon){
