@@ -124,36 +124,32 @@ for name, lat, lon in SPOTS:
     sea_dbg.setdefault("kd", {})[name] = {"dataset": used, "misure": len(rows), "ultima": rows[0] if rows else None}
     print(f"{name}: {len(rows)} misure di trasparenza da satellite")
 
-# Solo ricognizione: quali dati costieri ad alta risoluzione (100 m) esistono, per un prossimo passo
-def _walk(o, found):
-    if isinstance(o, dict):
-        if "dataset_id" in o:
-            names = []
-            def _vars(x):
-                if isinstance(x, dict):
-                    if "short_name" in x:
-                        names.append(x["short_name"])
-                    for y in x.values():
-                        _vars(y)
-                elif isinstance(x, list):
-                    for y in x:
-                        _vars(y)
-            _vars(o)
-            found[o["dataset_id"]] = sorted(set(n for n in names if n))[:12]
-        for y in o.values():
-            _walk(y, found)
-    elif isinstance(o, list):
-        for y in o:
-            _walk(y, found)
-
-try:
-    cat = cm.describe(product_id="OCEANCOLOUR_MED_BGC_HR_L3_NRT_009_205", disable_progress_bar=True)
-    data = cat.model_dump() if hasattr(cat, "model_dump") else json.loads(cat.json())
-    found = {}
-    _walk(data, found)
-    sea_dbg["hr"] = found
-except Exception as e:  # noqa: BLE001
-    sea_dbg["errors"].append(f"catalogo HR: {type(e).__name__}: {str(e)[:140]}")
+# Torbidità sottocosta ad alta risoluzione (Sentinel-2, pixel da 100 m): vede i pennacchi dei fiumi
+# e l'acqua sporca vicino a riva che il dato a 1 km non distingue. Passa ogni 2-5 giorni, cielo permettendo.
+HR_DATASET = "cmems_obs_oc_med_bgc_tur-spm-chl_nrt_l3-hr-mosaic_P1D-m"
+for name, lat, lon in SPOTS:
+    rows = []
+    try:
+        ds = cm.open_dataset(
+            dataset_id=HR_DATASET, username=user, password=pw, variables=["TUR"],
+            minimum_longitude=lon - 0.02, maximum_longitude=lon + 0.02,
+            minimum_latitude=lat - 0.02, maximum_latitude=lat + 0.02,
+            start_datetime=kd_start, end_datetime=kd_end,
+        )
+        tur = ds["TUR"].load()
+        for k, tm in enumerate(tur["time"].values):
+            v = np.asarray(tur.isel(time=k).values, dtype=float).ravel()
+            v = v[np.isfinite(v)]
+            v = v[(v >= 0) & (v < 200)]
+            if v.size >= 20:                             # almeno 20 pixel d'acqua validi (0,2 km²)
+                rows.append({"date": str(np.datetime_as_string(tm, unit="D")), "tur": round(float(np.median(v)), 2),
+                             "p90": round(float(np.percentile(v, 90)), 2), "n": int(v.size)})
+    except Exception as e:  # noqa: BLE001
+        sea_dbg["errors"].append(f"torbidità {name}: {type(e).__name__}: {str(e)[:140]}")
+    rows.sort(key=lambda r: r["date"], reverse=True)
+    out["spots"].setdefault(name, {"lat": lat, "lon": lon, "maxDepth": None, "days": []})["turb"] = rows
+    sea_dbg.setdefault("tur", {})[name] = {"misure": len(rows), "ultima": rows[0] if rows else None}
+    print(f"{name}: {len(rows)} misure di torbidità sottocosta")
 out["seaDebug"] = sea_dbg
 
 # Lago di Garda: profili e trasparenza da Alplakes (non blocca mai l'aggiornamento del mare)
