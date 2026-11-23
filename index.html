@@ -565,7 +565,9 @@ function scoreVis(d){
   if (d.secchi){
     // Trasparenza dal satellite: la visibilità orizzontale è circa il 75% della profondità di Secchi.
     // Le penalità sotto contano solo per ciò che succede dopo la misura.
-    start = clamp(SECCHI_TO_HORIZ * d.secchi.v, 1, Math.min(30, d.base * 1.6));
+    // Sul lago il rapporto è tarato sulle misure dei sub: sale con il Secchi ma non oltre LAKE_VIS_CAP.
+    start = d.lake ? clamp(LAKE_SECCHI_TO_HORIZ * d.secchi.v, 1, LAKE_VIS_CAP)
+                   : clamp(SECCHI_TO_HORIZ * d.secchi.v, 1, Math.min(30, d.base * 1.6));
     fac.push({ ic: "eye", t: "satellite " + dayNum(d.secchi.date) + (d.secchi.lakeWide ? " (lago)" : "") + ": " + fmt(d.secchi.v, 0, " m"), tone: "good" });
   } else {
     fac.push({ ic: "pin", t: "tipica " + d.base + " m" });
@@ -601,12 +603,17 @@ function scoreVis(d){
   const r = m / d.base;
   const lab = r >= 0.85 ? "Ottima" : r >= 0.65 ? "Buona" : r >= 0.45 ? "Discreta" : r >= 0.3 ? "Scarsa" : "Pessima";
   return {
-    visM: m, visLo: Math.max(1, Math.round(m * 0.8)), visHi: Math.round(m * 1.15),
+    visM: m, visLo: Math.max(1, Math.round(m * (d.lake ? 0.75 : 0.8))), visHi: Math.round(m * (d.lake ? 1.25 : 1.15)),
     visVert: Math.round(m * 1.4), visRatio: r, visLabel: lab, visFac: fac
   };
 }
 
-const SECCHI_TO_HORIZ = 0.75;   // rapporto tra visibilità orizzontale del sub e profondità di Secchi (da tarare)
+const SECCHI_TO_HORIZ = 0.75;   // mare: rapporto tra visibilità orizzontale del sub e profondità di Secchi (da tarare)
+// Garda: tarato il 23/11/2026 su 74 misure di visibilità orizzontale dei sub di Project Baseline (2016–2026, a 22–28 m,
+// Riva, Torbole, Salò, Manerba, Torri) confrontate con il Secchi di Sentinel-3 entro 5 giorni. Con acqua velata
+// (Secchi sotto 12 m) i sub vedono circa 0,9 × Secchi; d’inverno il Secchi sale a 18–20 m ma i sub restano sui 12–14 m.
+// Errore mediano 1,5 m (era 2,1 con 0,75 × Secchi); il 59% delle misure cade nella forchetta −25% / +25%.
+const LAKE_SECCHI_TO_HORIZ = 0.9, LAKE_VIS_CAP = 14;
 
 // Riparo: la direzione media (da cui arriva) cade in un settore protetto del sito?
 const sheltered = (deg, list) => deg != null && (list || []).includes(cardinal(deg));
