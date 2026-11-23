@@ -834,7 +834,7 @@ function render(data){
   if (marine) tiles.push(tile(ico("wave"), fmt(Mv("wave_height"), 1, " m"), fmt(Mv("wave_period"), 0, " s") + " " + arrowFrom(Mv("wave_direction")) + cardinal(Mv("wave_direction"))));
   tiles.push(tile(ico("wind"), W("wind_speed_10m", 0, " kn"), "max " + W("wind_gusts_10m", 0) + " " + arrowFrom(wdir) + cardinal(wdir)));
   tiles.push(tile(ico("drop"), fmt(marine ? Mv("sea_surface_temperature") : tAt(d0, 1), 1, "°"), ico("temp", "mut") + " aria " + W("temperature_2m", 0, "°")));
-  if (d0.secchi) tiles.push(tile(ico("eye"), fmt(d0.secchi.v, 0, " m"), meter(clarityLevel(d0.secchi.v), "Acqua " + clarityWord(d0.secchi.v)) + " trasparenza " + dayNum(d0.secchi.date)));
+  if (d0.secchi) tiles.push(tile(ico("eye"), fmt(d0.secchi.v, 0, " m"), meter(clarityLevel(d0.secchi.v), "Acqua " + clarityWord(d0.secchi.v)) + " trasparenza verticale " + dayNum(d0.secchi.date)));
   else if (marine && chl && chl.value != null) tiles.push(tile(ico("leaf"), planktonWord(chl.value), "plancton"));
   if (d0.rain72 > 5 || !marine) tiles.push(tile(ico("rain"), fmt(d0.rain72, 0, " mm"), "72 h"));
   if (d0.best) tiles.push(tile(ico("clock"), d0.best, "più calmo"));
@@ -886,7 +886,7 @@ function render(data){
         tile(ico("rain"), fmt(d.rainDay, 0, " mm"), "prima: " + fmt(d.rain72, 0, " mm")) +
         tile(ico("sun"), hhmm(d.sunrise) + "–" + hhmm(d.sunset), moon(d.date)) +
         (d.secchi ? tile(ico("eye"), fmt(d.secchi.v, d.secchi.est ? 0 : 1, " m"),
-          meter(clarityLevel(d.secchi.v), "Acqua " + clarityWord(d.secchi.v)) + " trasparenza " + dayNum(d.secchi.date)) : "") +
+          meter(clarityLevel(d.secchi.v), "Acqua " + clarityWord(d.secchi.v)) + " trasparenza verticale " + dayNum(d.secchi.date)) : "") +
         (d.turb ? tile(ico("pin"), fmt(d.turb.tur, 1) + " <small style=\"display:inline;font-weight:400\">FNU</small>",
           '<span title="Torbidità sottocosta da satellite (pixel da 100 m). Dato non ancora tarato: non entra nella stima.">costa ' +
           dayNum(d.turb.date) + "</span>" + turbTrend(d.turb)) : "") +
@@ -898,7 +898,7 @@ function render(data){
       (f.prot ? " " + ico("shield", "mut") : "") + (f.pct ? " <em>−" + f.pct + "%</em>" : "") + "</span>";
     const why = '<section class="sec"><h3>' + ico("eye", "mut") + "Visibilità " + meter(visLevel(d.visRatio), d.visLabel) + '</h3><div class="facs">' +
         d.visFac.map(facChip).join("") + (d.visFac.length === 1 ? '<span class="fac good">' + ico("check") + "nessuna penalità</span>" : "") +
-        '<span class="fac sum">→ ' + rng(d) + " m · ↕ " + d.visVert + " m</span>" +
+        '<span class="fac sum">orizzontale ' + rng(d) + " m · verticale " + d.visVert + " m</span>" +
       "</div><h3>" + ico("wave", "mut") + "Superficie " + meter(surfLevel(d.surf), d.surfLabel) + '</h3><div class="surf-row">' +
         rose(d) + '<div class="facs">' + d.surfFac.map(facChip).join("") + "</div></div></section>";
 
