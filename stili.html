@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Condizioni sub · scegli lo stile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Pagina provvisoria: quattro stili a confronto con gli stessi dati di esempio. Da cancellare dopo la scelta. */
+*{box-sizing:border-box}
+body{margin:0;padding:22px 14px 40px;background:#DFE3E7;color:#1b2630;font:400 16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+h1{font-size:1.3rem;margin:0 auto 4px;max-width:780px}
+.intro{max-width:780px;margin:0 auto 22px;color:#51606d;font-size:.92rem}
+.wall{display:flex;flex-wrap:wrap;gap:34px 30px;justify-content:center}
+figure{margin:0;width:360px;max-width:100%}
+figcaption{margin:0 4px 10px}
+figcaption b{display:block;font-size:1.15rem}
+figcaption span{color:#51606d;font-size:.88rem}
+.mock{border-radius:30px;overflow:hidden;padding:20px 18px 22px;box-shadow:0 14px 40px rgba(20,30,45,.22)}
+.mock header{display:flex;justify-content:space-between;align-items:baseline}
+.mock h2{margin:0}
+.mock nav{display:flex;flex-wrap:wrap;gap:6px}
+.mock ul{list-style:none;margin:0;padding:0}
+.mock p{margin:0}
+.meter{display:flex;gap:3px}
+.meter i{width:22px;height:5px;border-radius:3px;display:block}
+.bar{position:relative;height:6px;border-radius:3px}
+.bar i{position:absolute;top:0;bottom:0;border-radius:3px}
+
+/* ---------- A · Sott’acqua ---------- */
+.a{color:#fff;font-family:-apple-system,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+  background:radial-gradient(130% 55% at 25% -12%,rgba(170,235,255,.6),transparent 62%),linear-gradient(180deg,#2196D8 0%,#0F62AC 36%,#083A68 72%,#062B4F 100%)}
+.a .brand,.a .upd{font-size:.78rem;opacity:.78}
+.a h2{font-weight:600;font-size:1.75rem;letter-spacing:-.01em;margin:8px 0 12px}
+.a nav span{padding:5px 12px;border-radius:999px;font-size:.84rem;opacity:.78}
+.a nav .on{background:rgba(255,255,255,.24);opacity:1;font-weight:600}
+.a .hero{text-align:center;padding:24px 0 10px}
+.a .eb{font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;opacity:.8}
+.a .num{font-weight:200;font-size:5.6rem;line-height:1.02;letter-spacing:-.035em}
+.a .num small{font-size:1.4rem;font-weight:400;letter-spacing:0;opacity:.8;margin-left:5px}
+.a .meter{justify-content:center;margin:6px 0 12px}
+.a .meter i{background:rgba(255,255,255,.28)} .a .meter i.on{background:#fff}
+.a .verdict{font-size:1.15rem;font-weight:500}
+.a .chips{margin-top:6px;font-size:.88rem;opacity:.85}
+.a .chips span+span::before{content:" · "}
+.a .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.a .tile,.a .days{background:rgba(255,255,255,.13);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-radius:18px;padding:12px 14px}
+.a .tile label{display:block;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;opacity:.72}
+.a .tile b{font-size:1.55rem;font-weight:500}
+.a .days{margin-top:10px;padding:4px 14px}
+.a .days li{display:grid;grid-template-columns:3rem 4.6rem 1fr 3.9rem;gap:10px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,.17)}
+.a .days li:first-child{border-top:0}
+.a .dn{font-weight:600} .a .st{font-size:.82rem;opacity:.8}
+.a .bar{background:rgba(0,0,0,.24)} .a .bar i{background:linear-gradient(90deg,#74E3FF,#B6FFD9)}
+.a .l2 .bar i{background:linear-gradient(90deg,#C9D69A,#E8C989)} .a .l1 .bar i{background:#E3A27C}
+.a .rng{text-align:right;font-weight:600;white-space:nowrap}
+
+/* ---------- B · Computer da immersione ---------- */
+.b{background:#000;color:#fff;font-family:"Barlow",system-ui,sans-serif;border:3px solid #23272b}
+.b .brand,.b .upd,.b .eb,.b .tile label{font:600 .68rem/1.2 "Barlow",sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#35C3FF}
+.b .upd{color:#7C8791}
+.b h2{font:600 2.1rem/1 "Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.02em;margin:8px 0 12px}
+.b nav span{font:600 .82rem "Barlow Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#7C8791;padding:4px 9px;border:1px solid #2B3136;border-radius:5px}
+.b nav .on{background:#35C3FF;border-color:#35C3FF;color:#000}
+.b .hero{margin-top:14px;padding:12px 0 14px;border-top:1px solid #2B3136;border-bottom:1px solid #2B3136;display:grid;grid-template-columns:auto 1fr;gap:4px 18px;align-items:end}
+.b .eb{grid-column:1 / -1}
+.b .num{font:600 6rem/.88 "Barlow Condensed",sans-serif;color:#45E06A;grid-row:2 / span 3}
+.b .num small{font-size:1.5rem;color:#7C8791;margin-left:4px}
+.b .meter{align-self:start;margin-top:10px} .b .meter i{border-radius:1px;background:#23272b;width:18px;height:8px} .b .meter i.on{background:#45E06A}
+.b .verdict{font:600 1.25rem/1.1 "Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#45E06A}
+.b .chips{font:500 .9rem "Barlow Condensed",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#B9C2C9;display:flex;flex-direction:column}
+.b .tiles{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;border-bottom:1px solid #2B3136}
+.b .tile{padding:10px 0 9px 10px;border-left:1px solid #2B3136} .b .tile:first-child{border-left:0;padding-left:0}
+.b .tile label{letter-spacing:.06em;white-space:nowrap}
+.b .tile b{display:block;font:600 1.75rem/1.05 "Barlow Condensed",sans-serif;margin-top:3px}
+.b .days li{display:grid;grid-template-columns:3rem 5.4rem 1fr auto;gap:10px;align-items:baseline;padding:9px 0;border-bottom:1px solid #1B1F23}
+.b .dn{font:600 .82rem "Barlow",sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#7C8791}
+.b .rng{font:600 1.7rem/1 "Barlow Condensed",sans-serif;color:#45E06A;order:-0;white-space:nowrap}
+.b .l2 .rng,.b .l3 .rng{color:#FFD23F} .b .l1 .rng{color:#FF5A4D}
+.b .bar{display:none}
+.b .st{font:600 .86rem "Barlow Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#B9C2C9;justify-self:end;grid-column:4}
+.b .days li>.rng{grid-column:2;grid-row:1} .b .days li>.bar{grid-column:3}
+
+/* ---------- C · Pulito ---------- */
+.c{background:#fff;color:#0A2A40;font-family:"Inter",system-ui,sans-serif}
+.c .brand{font-weight:700;font-size:.82rem} .c .upd{font-size:.78rem;color:#6A7C8B}
+.c h2{font-weight:700;font-size:1.7rem;letter-spacing:-.02em;margin:10px 0 10px}
+.c nav{gap:4px 16px;border-bottom:1px solid #E4EBF1;padding-bottom:0}
+.c nav span{font-size:.88rem;color:#6A7C8B;padding:6px 0 8px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.c nav .on{color:#0A2A40;font-weight:600;border-bottom-color:#0067D6}
+.c .hero{background:#EDF5FB;border-radius:18px;padding:16px 18px;margin-top:16px}
+.c .eb{font-size:.8rem;color:#55697A;font-weight:500}
+.c .num{font-weight:700;font-size:3.9rem;line-height:1.05;letter-spacing:-.04em}
+.c .num small{font-size:1.2rem;font-weight:500;letter-spacing:0;color:#55697A;margin-left:4px}
+.c .meter{margin:4px 0 12px} .c .meter i{background:#CFDEEA} .c .meter i.on{background:#0067D6}
+.c .verdict{font-weight:600;display:flex;align-items:center;gap:8px}
+.c .verdict::before{content:"";width:9px;height:9px;border-radius:50%;background:#12A150}
+.c .chips{font-size:.86rem;color:#55697A;margin-top:3px} .c .chips span+span::before{content:" · "}
+.c .tiles{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;margin-top:8px}
+.c .tile{padding:11px 0;border-bottom:1px solid #E4EBF1;display:flex;justify-content:space-between;align-items:baseline}
+.c .tile label{font-size:.84rem;color:#55697A} .c .tile b{font-weight:600}
+.c .days li{display:grid;grid-template-columns:3rem 4.4rem 1fr 4.2rem;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid #E4EBF1}
+.c .dn{font-weight:600} .c .st{font-size:.82rem;color:#55697A}
+.c .bar{background:#EDF2F6} .c .bar i{background:#0067D6}
+.c .l2 .bar i{background:#E0A100} .c .l1 .bar i{background:#D8452F}
+.c .rng{text-align:right;font-weight:600;white-space:nowrap}
+
+/* ---------- D · Quello di prima, rifinito ---------- */
+.d{background:#0E2431;color:#DCEAEA;font-family:"Barlow",system-ui,sans-serif}
+.d .brand{font:600 .9rem "Barlow Condensed",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#8FAAB1} .d .upd{font-size:.8rem;color:#8FAAB1}
+.d h2{font:700 2.1rem/1.05 "Barlow Condensed",sans-serif;margin:6px 0 12px}
+.d nav span{font-size:.88rem;color:#8FAAB1;padding:5px 12px;border-radius:999px}
+.d nav .on{background:#5FB7B9;color:#0E2431;font-weight:600}
+.d .hero{background:#14303F;border-radius:18px;padding:16px 18px;margin-top:14px}
+.d .eb{font:600 .7rem "Barlow",sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#8FAAB1}
+.d .num{font:700 4.6rem/1 "Barlow Condensed",sans-serif;margin-top:4px}
+.d .num small{font-size:1.5rem;font-weight:600;color:#8FAAB1;margin-left:4px}
+.d .meter{margin:6px 0 12px} .d .meter i{background:#22495A} .d .meter i.on{background:#5FB7B9}
+.d .verdict{font-weight:600;color:#5FB7B9;font-size:1.05rem}
+.d .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.d .chips span{font-size:.82rem;font-weight:600;padding:4px 10px;border-radius:8px;background:rgba(95,183,185,.16);color:#9FD6D7}
+.d .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.d .tile{background:#14303F;border-radius:14px;padding:10px 14px}
+.d .tile label{display:block;font-size:.76rem;color:#8FAAB1}
+.d .tile b{font:600 1.5rem/1.1 "Barlow Condensed",sans-serif}
+.d .days{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.d .days li{background:#14303F;border-radius:14px;display:grid;grid-template-columns:3rem 5.2rem 1fr auto;gap:10px;align-items:center;padding:10px 14px}
+.d .dn{font:700 1.1rem "Barlow Condensed",sans-serif}
+.d .rng{font:700 1.55rem/1 "Barlow Condensed",sans-serif;grid-column:2;grid-row:1;white-space:nowrap}
+.d .bar{background:#22495A;grid-column:3;grid-row:1} .d .bar i{background:#5FB7B9}
+.d .l2 .bar i{background:#D9AE62} .d .l1 .bar i{background:#E07A5F}
+.d .st{font-size:.82rem;font-weight:600;color:#9FD6D7;grid-column:4;grid-row:1}
+.d .l2 .st{color:#D9AE62} .d .l1 .st{color:#E07A5F}
+</style>
+</head>
+<body>
+<h1>Condizioni sub · quale stile?</h1>
+<p class="intro">Quattro direzioni diverse con gli stessi dati di esempio. Dimmi la lettera, anche mescolando («il B ma con i colori del D»).</p>
+<div class="wall" id="wall"></div>
+<script>
+"use strict";
+const DAYS = [   // giorno, min, max, livello 1–5, superficie
+  ["Oggi", 8, 13, 5, "Calmo"], ["Mar", 8, 13, 5, "Calmo"], ["Mer", 5, 9, 4, "Calmo"], ["Gio", 4, 7, 2, "Mosso"], ["Ven", 2, 4, 1, "Sconsigliato"]
+];
+const SKINS = [
+  ["a", "A · Sott’acqua", "Tutta la pagina è il mare visto da sotto, riquadri di vetro, numeri sottili. Come l’app Meteo dell’iPhone."],
+  ["b", "B · Computer da immersione", "Schermo nero, etichette piccole, numeri grandi colorati: verde, giallo, rosso. Come uno Shearwater."],
+  ["c", "C · Pulito", "Bianco, molto spazio, un solo colore. Come il sito meteo norvegese Yr."],
+  ["d", "D · Quello di prima, rifinito", "I colori e i caratteri della prima versione, senza le pillole a contorno."]
+];
+const meter = n => '<div class="meter">' + [1, 2, 3, 4, 5].map(k => '<i class="' + (k <= n ? "on" : "") + '"></i>').join("") + "</div>";
+const mock = k =>
+  '<div class="mock ' + k + '">' +
+    '<header><span class="brand">Condizioni sub</span><span class="upd">agg. 15:59</span></header>' +
+    "<h2>Riva del Garda</h2>" +
+    '<nav><span class="on">Riva del Garda</span><span>Salò</span><span>Tempesta</span><span>Lavagna</span></nav>' +
+    '<section class="hero"><span class="eb">Oggi · 23 nov</span><div class="num">8–13<small>m</small></div>' + meter(5) +
+      '<p class="verdict">Buone condizioni</p><div class="chips"><span>Calmo</span><span>dom 29: 10–17 m</span></div></section>' +
+    '<section class="tiles">' + [["Vento", "1 kn"], ["Acqua", "15,0°"], ["Trasparenza", "13 m"], ["Più calmo", "9–12"]]
+      .map(([l, v]) => '<div class="tile"><label>' + l + "</label><b>" + v + "</b></div>").join("") + "</section>" +
+    '<ul class="days">' + DAYS.map(([d, lo, hi, lv, st]) =>
+      '<li class="l' + lv + '"><span class="dn">' + d + '</span><span class="st">' + st + "</span>" +
+      '<span class="bar"><i style="left:' + lo / 20 * 100 + "%;width:" + (hi - lo) / 20 * 100 + '%"></i></span>' +
+      '<span class="rng">' + lo + "–" + hi + " m</span></li>").join("") + "</ul>" +
+  "</div>";
+document.getElementById("wall").innerHTML = SKINS.map(([k, t, s]) =>
+  '<figure id="f-' + k + '"><figcaption><b>' + t + "</b><span>" + s + "</span></figcaption>" + mock(k) + "</figure>").join("");
+</script>
+</body>
+</html>
