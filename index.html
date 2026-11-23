@@ -171,6 +171,7 @@ h1{font-weight:700;font-size:2.3rem;line-height:1.08;letter-spacing:-.025em;marg
 .fac.bad em{color:var(--coral)}
 .fac.good .ic{stroke:var(--sea)}
 .fac.sum{border-top:1px solid var(--ink);border-bottom:0;margin-top:-1px;padding-top:9px;font-weight:700}
+.fac.sum+.fac{padding-top:2px;color:var(--muted)}
 .surf-row{display:flex;gap:16px;align-items:center}
 .surf-row .facs{flex:1 1 auto;min-width:0}
 .rose{width:64px;height:64px;flex:0 0 64px}
@@ -622,7 +623,8 @@ function scoreVis(d){
     // Trasparenza dal satellite: la visibilità orizzontale è circa il 75% della profondità di Secchi.
     // Le penalità sotto contano solo per ciò che succede dopo la misura.
     start = visFromSecchi(d);
-    fac.push({ ic: "eye", t: "da satellite " + dayNum(d.secchi.date) + (d.secchi.lakeWide ? " (lago)" : "") + ": " + fmt(start, 0, " m"), tone: "good" });
+    fac.push({ ic: "eye", t: "da satellite " + dayNum(d.secchi.date) + (d.secchi.lakeWide ? " (lago)" : "") +
+      (d.lake && stratOf(d) ? ", a " + LAKE_REF_Z + " m" : "") + ": " + fmt(start, 0, " m"), tone: "good" });
   } else {
     fac.push({ ic: "pin", t: "tipica " + d.base + " m" });
     if (chlVis != null && chlVis < d.base) fac.push({ ic: "leaf", t: "plancton " + planktonWord(d.chl).toLowerCase() + ": max " + Math.round(chlVis) + " m", tone: "mid" });
@@ -656,9 +658,12 @@ function scoreVis(d){
   const m = Math.max(1, start * f);
   const r = m / d.base;
   const lab = r >= 0.85 ? "Ottima" : r >= 0.65 ? "Buona" : r >= 0.45 ? "Discreta" : r >= 0.3 ? "Scarsa" : "Pessima";
+  // lago: l’altro strato (sopra o sotto il salto termico), con le stesse riduzioni
+  const o = lakeOtherLayer(d), om = o ? Math.max(1, o.m * f) : null;
+  const alt = o && Math.abs(om - m) >= 1 ? { z: o.z, sopra: o.sopra, m: om, visLo: Math.max(1, Math.round(om * 0.75)), visHi: Math.round(om * 1.25) } : null;
   return {
     visM: m, visLo: Math.max(1, Math.round(m * (d.lake ? 0.75 : 0.8))), visHi: Math.round(m * (d.lake ? 1.25 : 1.15)),
-    visVert: Math.round(m * 1.4), visRatio: r, visLabel: lab, visFac: fac
+    visVert: Math.round(m * 1.4), visRatio: r, visLabel: lab, visFac: fac, visAlt: alt
   };
 }
 
@@ -668,14 +673,42 @@ const SECCHI_TO_HORIZ = 0.75;   // mare: rapporto tra visibilità orizzontale de
 // (Secchi sotto 12 m) i sub vedono circa 0,9 × Secchi; d’inverno il Secchi sale a 18–20 m ma i sub restano sui 12–14 m.
 // Errore mediano 1,5 m (era 2,1 con 0,75 × Secchi); il 59% delle misure cade nella forchetta −25% / +25%.
 const LAKE_SECCHI_TO_HORIZ = 0.9, LAKE_VIS_CAP = 14;
-// Dal dato del satellite (profondità di Secchi: trasparenza verticale, vista dall’alto) alla visibilità in acqua,
-// cioè quanto vede un sub in orizzontale, prima di togliere pioggia, onda e fiumi.
-// Sul lago il rapporto è tarato sulle misure dei sub: sale con il Secchi ma non oltre LAKE_VIS_CAP.
-function visFromSecchi(d){
-  if (!d.secchi) return null;
-  return d.lake ? clamp(LAKE_SECCHI_TO_HORIZ * d.secchi.v, 1, LAKE_VIS_CAP)
-                : clamp(SECCHI_TO_HORIZ * d.secchi.v, 1, Math.min(30, d.base * 1.6));
+// Garda, due strati (23/11/2026, 65 misure dal 2019 con il profilo di temperatura del modello Alplakes di quel giorno).
+// Il satellite vede l’acqua di superficie. Se il sub sta nella stessa acqua (meno di 0,5 °C di differenza con 1 m)
+// vede circa 0,71 × Secchi; sotto il salto termico l’acqua è più limpida: 0,9 × con 0,5–2 °C di salto, di più oltre
+// (le misure danno da 1,0 a 1,3: qui 1,1, prudente). A 25 m non è più precisa della formula sopra (errore medio
+// 2,0 m contro 2,1), ma dice anche quanto si vede nell’altro strato. Le misure sono tutte a 22–28 m:
+// sotto i 30 m è un’estrapolazione.
+const LAKE_REF_Z = 25;                       // quota a cui vale il numero principale: quella delle misure dei sub
+const lakeK = dT => dT >= 2 ? 1.1 : dT >= 0.5 ? 0.9 : 0.71;
+// salto di temperatura tra 1 m e la quota z, dal profilo del giorno (null se il profilo manca)
+// Il profilo copre solo 5 giorni: per i giorni dopo si usa l’ultimo disponibile (gli strati del lago cambiano piano).
+const stratOf = d => d.deep || d.deepNear || null;
+function dTat(d, z){
+  const p = stratOf(d), at = q => { const x = p && p.profile.find(y => y[0] === q); return x ? x[1] : null; };
+  const t1 = at(1), tz = at(z);
+  return t1 == null || tz == null ? null : Math.max(0, t1 - tz);
 }
+// Dal dato del satellite (profondità di Secchi: trasparenza verticale, vista dall’alto) alla visibilità in acqua,
+// cioè quanto vede un sub in orizzontale, prima di togliere pioggia, onda e fiumi. Sul lago: alla quota z.
+function visFromSecchi(d, z = LAKE_REF_Z){
+  if (!d.secchi) return null;
+  if (!d.lake) return clamp(SECCHI_TO_HORIZ * d.secchi.v, 1, Math.min(30, d.base * 1.6));
+  const dT = dTat(d, z);
+  return clamp((dT == null ? LAKE_SECCHI_TO_HORIZ : lakeK(dT)) * d.secchi.v, 1, LAKE_VIS_CAP);
+}
+// L’altro strato del lago rispetto alla quota di riferimento: { z, sopra, m } oppure null se l’acqua è la stessa fino a 100 m.
+// sopra = true: lo strato di superficie, più torbido («sopra i 15 m»); false: quello sotto il salto termico («sotto i 60 m»).
+function lakeOtherLayer(d){
+  if (!d.lake || !d.secchi || !stratOf(d)) return null;
+  const zs = stratOf(d).profile.filter(x => x[1] != null).map(x => x[0]);
+  const zMix = zs.find(z => dTat(d, z) >= 0.5);          // prima quota in cui l’acqua non è più quella di superficie
+  if (zMix == null) return null;
+  if (zMix <= LAKE_REF_Z) return { z: zMix, sopra: true, m: clamp(lakeK(0) * d.secchi.v, 1, LAKE_VIS_CAP) };
+  const zDeep = zs.filter(z => z <= zMix + 20).pop();    // una ventina di metri sotto l’inizio del salto
+  return { z: zMix, sopra: false, m: visFromSecchi(d, zDeep) };
+}
+const altText = a => (a.sopra ? "sopra i " : "sotto i ") + a.z + " m: " + rng(a) + " m";
 // riquadro con l’occhio: la visibilità in acqua ricavata dall’ultima immagine del satellite
 const satTile = d => tile(ico("eye"), fmt(visFromSecchi(d), 0, " m"),
   meter(visLevel(visFromSecchi(d) / d.base), "Visibilità in acqua ricavata dal satellite (trasparenza verticale " + fmt(d.secchi.v, 1, " m") + ")") +
@@ -821,10 +854,12 @@ function heroHTML(days){
   const best = days.slice().sort((a, b) => rank(b) - rank(a))[0];
   const bestTag = best !== d && rank(best) > rank(d) * 1.15
     ? '<span class="tag big" title="Giorno migliore in arrivo">' + ico("star") + dayName(best.date) + " " + new Date(best.date + "T12:00").getDate() + " · " + rng(best) + " m</span>" : "";
-  return '<div class="hero-top"><div class="hero-main"><span class="eyebrow">Visibilità oggi · ' + dayNum(d.date) + "</span>" +
+  return '<div class="hero-top"><div class="hero-main"><span class="eyebrow">Visibilità oggi' + (d.lake && stratOf(d) && d.secchi ? " a " + LAKE_REF_Z + " m" : "") + " · " + dayNum(d.date) + "</span>" +
     '<div class="hero-num">' + rng(d) + "<small> m</small></div>" +
     meter(visLevel(d.visRatio), "Visibilità " + d.visLabel.toLowerCase()) + "</div>" +
-    '<div class="hero-side"><p class="verdict ' + verdict[1] + '">' + verdict[0] + "</p>" + surfTag(d, true) + seenTag(d.date) + bestTag + "</div></div>";
+    '<div class="hero-side"><p class="verdict ' + verdict[1] + '">' + verdict[0] + "</p>" + surfTag(d, true) +
+    (d.visAlt ? '<span class="tag big" title="Visibilità nell’altro strato del lago">' + ico("depth") + altText(d.visAlt) + "</span>" : "") +
+    seenTag(d.date) + bestTag + "</div></div>";
 }
 
 function render(data){
@@ -908,6 +943,7 @@ function render(data){
     const why = '<section class="sec"><h3>' + ico("eye", "mut") + "Visibilità " + meter(visLevel(d.visRatio), d.visLabel) + '</h3><div class="facs">' +
         d.visFac.map(facChip).join("") + (d.visFac.length === 1 ? '<span class="fac good">' + ico("check") + "nessuna penalità</span>" : "") +
         '<span class="fac sum">orizzontale ' + rng(d) + " m · verticale " + d.visVert + " m</span>" +
+        (d.visAlt ? '<span class="fac">' + ico("depth") + altText(d.visAlt) + "</span>" : "") +
       "</div><h3>" + ico("wave", "mut") + "Superficie " + meter(surfLevel(d.surf), d.surfLabel) + '</h3><div class="surf-row">' +
         rose(d) + '<div class="facs">' + d.surfFac.map(facChip).join("") + "</div></div></section>";
 
@@ -1061,7 +1097,12 @@ function daysFor(s, c, from = null){
   const tu = upTo(ts && ts.turb);
   const turbObs = tu.length ? { ...tu[0], prev: tu[1] ? tu[1].tur : null } : null;
   const days = analyse(c.marine, c.wx, c.chl, s.base, c.rivers || [], s.shelter || [], obs, turbObs, from);
-  days.forEach(d => { d.deep = ts ? (ts.days || []).find(x => x.date === d.date) || null : null; });
+  days.forEach(d => {
+    const pd = ts ? ts.days || [] : [];
+    d.deep = pd.find(x => x.date === d.date) || null;
+    d.deepNear = d.deep || !pd.length ? null : (d.date > pd[pd.length - 1].date ? pd[pd.length - 1] : pd[0]);
+    if (d.lake && stratOf(d)) Object.assign(d, scoreVis(d));     // sul lago la stima dipende dal profilo di temperatura
+  });
   return { days, ts };
 }
 function show(s, c){
@@ -1169,7 +1210,8 @@ const seenTag = date => {
 // fotografia della stima e dei dati che l’hanno prodotta: serve a rifare i conti quando si tarano le costanti
 function snapshot(s, d){
   return {
-    est: { m: r2(d.visM), lo: d.visLo, hi: d.visHi, base: s.base, label: d.visLabel },
+    est: { m: r2(d.visM), lo: d.visLo, hi: d.visHi, base: s.base, label: d.visLabel,
+           alt: d.visAlt ? { z: d.visAlt.z, sopra: d.visAlt.sopra, m: r2(d.visAlt.m) } : undefined },
     in: {
       secchi: d.secchi ? { v: d.secchi.v, date: d.secchi.date, sat: d.secchi.sat, lakeWide: d.secchi.lakeWide || undefined } : null,
       turb: d.turb ? { tur: d.turb.tur, date: d.turb.date } : null,
@@ -1178,7 +1220,7 @@ function snapshot(s, d){
       dayU: r2(d.dayU), hs: r2(d.hs), tp: r2(d.tp), dayProt: sheltered(d.waveDir, d.shelter),
       gust: r2(d.gust), prevGust: r2(d.prevGust), surf: d.surf,
       riv: (d.riv || []).map(r => ({ name: r.name, w: r.w, ratio: r2(r.ratio) })),
-      thermo: d.deep ? d.deep.thermocline : null
+      thermo: d.deep ? d.deep.thermocline : null, dT25: d.lake ? r2(dTat(d, LAKE_REF_Z)) : undefined
     },
     fac: (d.visFac || []).map(f => f.t + (f.pct ? " −" + f.pct + "%" : ""))
   };
