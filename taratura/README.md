@@ -34,3 +34,23 @@ In `index.html`: `lakeK` = 0,71 / 0,9 / 1,1 con tetto a 14 m. A 25 m non è più
 (errore medio 2,0 m contro 2,1; su metà dei dati tenuta da parte è pari o peggiore), quindi il guadagno non è la
 precisione ma il secondo numero: quanto si vede nell'altro strato. Le misure sono tutte a 22–28 m: sotto i 30 m è
 un'estrapolazione.
+
+## Stagione (23 novembre 2026)
+
+`python stagione.py`: mediana mensile delle 117 misure (gennaio 12,4 m, maggio 8,2, settembre 7,0, ottobre 6,4;
+novembre e dicembre hanno solo 2 misure del 2016 e sono interpolati). In `index.html`: `LAKE_SEASON`, usata solo
+quando manca una misura recente del satellite. Mescolarla alla stima da satellite, o usarla come limite, non riduce
+l'errore (medio 2,26–2,29 m contro 2,28), quindi non è usata come freno.
+
+## Sentinel-2 vicino a riva: provato, non usato (23 novembre 2026)
+
+`python serie_s2.py`, poi `python confronto_s2.py`: Z490 di Sentinel-2 (Alplakes, dal giugno 2023) a 100–200 m dalla
+riva davanti alle stazioni. Su 22 misure dei sub con entrambi i satelliti: correlazione con la visibilità vista 0,66
+contro 0,84 di Sentinel-3 al largo; errore mediano 3,0 m contro 1,5 m. Non è entrato nella stima.
+
+## Piene del Sarca (dalle immersioni di François, `osservazioni.csv`)
+
+13 settembre 2026 a Riva: visibilità nulla con satellite invariato e senza pioggia sul posto; la portata del Sarca
+era triplicata in due giorni. L'acqua fredda del fiume scende sotto la superficie e il satellite non la vede. In
+`index.html`: sul lago la piena conta anche se è precedente alla foto del satellite, si riconosce la piena improvvisa
+(`rise`: portata sul minimo dei 4 giorni prima) e le piene forti pesano di più. È tarato su un solo caso.

@@ -526,14 +526,25 @@ function analyse(marine, wx, chl, base, rivers = [], shelter = [], obs = null, t
       riv: riv.map(r => {
         // la piena pesa per alcuni giorni (di più sul lago), con effetto che si attenua
         const at = day => { const i = r.time.indexOf(day); return i < 0 ? null : r.q[i]; };
-        let eff = null, peak = null, peakAgo = 0;
+        let eff = null, peak = null, peakAgo = 0, rise = null;
         for (let k = 0; k <= look; k++){
           const day = addDays(date, -k), q = at(day);
-          if (q == null || (secchi && day <= secchi.date)) continue;   // già dentro la misura satellitare
+          // In mare la piena di prima della foto è già dentro la misura del satellite. Sul lago no: l’acqua fredda
+          // del fiume scende sotto la superficie e il satellite non la vede (Riva, 13/9/2026: Sarca da 23 a 74 m³/s
+          // in due giorni, visibilità nulla, satellite invariato).
+          if (q == null || (secchi && mh && day <= secchi.date)) continue;
           if (eff == null || q * RIVER_DECAY[k] > eff) { eff = q * RIVER_DECAY[k]; peak = q; peakAgo = k; }
+          // piena improvvisa: quanto è salita la portata rispetto al minimo dei 4 giorni prima; conta meno se la
+          // portata resta sotto quella abituale, e si attenua nei giorni come la piena
+          const before = [1, 2, 3, 4].map(j => at(addDays(day, -j))).filter(v => v != null && v > 0);
+          if (!mh && before.length){
+            const up = q / Math.min(...before) - 1, size = r.median ? Math.min(1, q / r.median) : 1;
+            const x = 1 + Math.max(0, up) * size * RIVER_DECAY[k];
+            if (rise == null || x > rise) rise = x;
+          }
         }
         const hist = [6, 5, 4, 3, 2, 1, 0].map(k => at(addDays(date, -k)));
-        return { name: r.name, w: r.w, q: at(date), peak, peakAgo, hist, norm: r.median,
+        return { name: r.name, w: r.w, q: at(date), peak, peakAgo, hist, norm: r.median, rise,
                  ratio: eff != null && r.median ? eff / r.median : null };
       }),
       chl: chl?.value ?? null
@@ -626,7 +637,10 @@ function scoreVis(d){
     fac.push({ ic: "eye", t: "da satellite " + dayNum(d.secchi.date) + (d.secchi.lakeWide ? " (lago)" : "") +
       (d.lake && stratOf(d) ? ", a " + LAKE_REF_Z + " m" : "") + ": " + fmt(start, 0, " m"), tone: "good" });
   } else {
-    fac.push({ ic: "pin", t: "tipica " + d.base + " m" });
+    // Lago senza satellite recente (nuvole): la visibilità tipica del sito corretta per la stagione
+    if (d.lake) start = d.base * LAKE_SEASON[+d.date.slice(5, 7) - 1];
+    fac.push({ ic: "pin", t: d.lake ? "tipica di " + new Date(d.date + "T12:00").toLocaleDateString("it-IT", { month: "long" }) + ": " + fmt(start, 0, " m")
+                                    : "tipica " + d.base + " m" });
     if (chlVis != null && chlVis < d.base) fac.push({ ic: "leaf", t: "plancton " + planktonWord(d.chl).toLowerCase() + ": max " + Math.round(chlVis) + " m", tone: "mid" });
   }
   // 2) Fattori che riducono la visibilità.
@@ -645,9 +659,11 @@ function scoreVis(d){
     () => "mare prima " + fmt(d.prevHs, 1, " m"), prevProt);
   if (d.lake) step(d.prevGust, [[30, 0.65], [22, 0.8], [16, 0.9]], "wind", v => "vento prima " + v.toFixed(0) + " kn");
   for (const r of d.riv || []){
-    if (r.ratio == null) continue;
-    const rules = [[4, 0.5], [2.5, 0.65], [1.6, 0.8], [1.2, 0.92]];
-    const hit = rules.find(([thr]) => r.ratio > thr);
+    if (r.ratio == null && r.rise == null) continue;
+    // sul lago conta anche la piena improvvisa, e le piene forti pesano di più (vicino alla foce l’acqua diventa opaca)
+    const x = Math.max(r.ratio || 0, r.rise || 0);
+    const rules = d.lake ? [[3, 0.3], [2.5, 0.5], [1.6, 0.8], [1.2, 0.92]] : [[4, 0.5], [2.5, 0.65], [1.6, 0.8], [1.2, 0.92]];
+    const hit = rules.find(([thr]) => x > thr);
     if (!hit) continue;
     const k = 1 - r.w * (1 - hit[1]);
     f *= k;
@@ -679,6 +695,10 @@ const LAKE_SECCHI_TO_HORIZ = 0.9, LAKE_VIS_CAP = 14;
 // (le misure danno da 1,0 a 1,3: qui 1,1, prudente). A 25 m non è più precisa della formula sopra (errore medio
 // 2,0 m contro 2,1), ma dice anche quanto si vede nell’altro strato. Le misure sono tutte a 22–28 m:
 // sotto i 30 m è un’estrapolazione.
+// Stagione sul Garda: mediana mensile delle 117 misure dei sub divisa per la mediana generale (9 m), da gennaio a
+// dicembre. Marzo, aprile, luglio, agosto, novembre e dicembre sono interpolati (nessuna o solo 2 misure).
+// Serve solo quando manca il satellite: mescolarla alla stima da satellite non riduce l’errore (provato).
+const LAKE_SEASON = [1.38, 1.17, 1.08, 1.0, 0.91, 0.89, 0.85, 0.81, 0.78, 0.71, 0.93, 1.16];
 const LAKE_REF_Z = 25;                       // quota a cui vale il numero principale: quella delle misure dei sub
 const lakeK = dT => dT >= 2 ? 1.1 : dT >= 0.5 ? 0.9 : 0.71;
 // salto di temperatura tra 1 m e la quota z, dal profilo del giorno (null se il profilo manca)
@@ -972,7 +992,8 @@ function render(data){
 
 // stato del fiume rispetto alla sua portata abituale
 function riverState(r){
-  const x = r.ratio != null ? r.ratio : (r.q != null && r.norm ? r.q / r.norm : null);
+  const x0 = r.ratio != null ? r.ratio : (r.q != null && r.norm ? r.q / r.norm : null);
+  const x = x0 == null && r.rise == null ? null : Math.max(x0 || 0, r.rise || 0);
   if (x == null) return { label: "n/d", cls: "" };
   if (x > 4) return { label: "forte piena", cls: "bad" };
   if (x > 2.5) return { label: "in piena", cls: "bad" };
@@ -1219,7 +1240,7 @@ function snapshot(s, d){
       prevU: r2(d.prevU), prevHs: r2(d.prevHs), prevProt: sheltered(d.prevWaveDir, d.shelter),
       dayU: r2(d.dayU), hs: r2(d.hs), tp: r2(d.tp), dayProt: sheltered(d.waveDir, d.shelter),
       gust: r2(d.gust), prevGust: r2(d.prevGust), surf: d.surf,
-      riv: (d.riv || []).map(r => ({ name: r.name, w: r.w, ratio: r2(r.ratio) })),
+      riv: (d.riv || []).map(r => ({ name: r.name, w: r.w, ratio: r2(r.ratio), rise: r2(r.rise) })),
       thermo: d.deep ? d.deep.thermocline : null, dT25: d.lake ? r2(dTat(d, LAKE_REF_Z)) : undefined
     },
     fac: (d.visFac || []).map(f => f.t + (f.pct ? " −" + f.pct + "%" : ""))
