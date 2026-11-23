@@ -621,10 +621,8 @@ function scoreVis(d){
   if (d.secchi){
     // Trasparenza dal satellite: la visibilità orizzontale è circa il 75% della profondità di Secchi.
     // Le penalità sotto contano solo per ciò che succede dopo la misura.
-    // Sul lago il rapporto è tarato sulle misure dei sub: sale con il Secchi ma non oltre LAKE_VIS_CAP.
-    start = d.lake ? clamp(LAKE_SECCHI_TO_HORIZ * d.secchi.v, 1, LAKE_VIS_CAP)
-                   : clamp(SECCHI_TO_HORIZ * d.secchi.v, 1, Math.min(30, d.base * 1.6));
-    fac.push({ ic: "eye", t: "satellite " + dayNum(d.secchi.date) + (d.secchi.lakeWide ? " (lago)" : "") + ": " + fmt(d.secchi.v, 0, " m"), tone: "good" });
+    start = visFromSecchi(d);
+    fac.push({ ic: "eye", t: "da satellite " + dayNum(d.secchi.date) + (d.secchi.lakeWide ? " (lago)" : "") + ": " + fmt(start, 0, " m"), tone: "good" });
   } else {
     fac.push({ ic: "pin", t: "tipica " + d.base + " m" });
     if (chlVis != null && chlVis < d.base) fac.push({ ic: "leaf", t: "plancton " + planktonWord(d.chl).toLowerCase() + ": max " + Math.round(chlVis) + " m", tone: "mid" });
@@ -670,6 +668,18 @@ const SECCHI_TO_HORIZ = 0.75;   // mare: rapporto tra visibilità orizzontale de
 // (Secchi sotto 12 m) i sub vedono circa 0,9 × Secchi; d’inverno il Secchi sale a 18–20 m ma i sub restano sui 12–14 m.
 // Errore mediano 1,5 m (era 2,1 con 0,75 × Secchi); il 59% delle misure cade nella forchetta −25% / +25%.
 const LAKE_SECCHI_TO_HORIZ = 0.9, LAKE_VIS_CAP = 14;
+// Dal dato del satellite (profondità di Secchi: trasparenza verticale, vista dall’alto) alla visibilità in acqua,
+// cioè quanto vede un sub in orizzontale, prima di togliere pioggia, onda e fiumi.
+// Sul lago il rapporto è tarato sulle misure dei sub: sale con il Secchi ma non oltre LAKE_VIS_CAP.
+function visFromSecchi(d){
+  if (!d.secchi) return null;
+  return d.lake ? clamp(LAKE_SECCHI_TO_HORIZ * d.secchi.v, 1, LAKE_VIS_CAP)
+                : clamp(SECCHI_TO_HORIZ * d.secchi.v, 1, Math.min(30, d.base * 1.6));
+}
+// riquadro con l’occhio: la visibilità in acqua ricavata dall’ultima immagine del satellite
+const satTile = d => tile(ico("eye"), fmt(visFromSecchi(d), 0, " m"),
+  meter(visLevel(visFromSecchi(d) / d.base), "Visibilità in acqua ricavata dal satellite (trasparenza verticale " + fmt(d.secchi.v, 1, " m") + ")") +
+  " visibilità da satellite " + dayNum(d.secchi.date));
 
 // Riparo: la direzione media (da cui arriva) cade in un settore protetto del sito?
 const sheltered = (deg, list) => deg != null && (list || []).includes(cardinal(deg));
@@ -834,7 +844,7 @@ function render(data){
   if (marine) tiles.push(tile(ico("wave"), fmt(Mv("wave_height"), 1, " m"), fmt(Mv("wave_period"), 0, " s") + " " + arrowFrom(Mv("wave_direction")) + cardinal(Mv("wave_direction"))));
   tiles.push(tile(ico("wind"), W("wind_speed_10m", 0, " kn"), "max " + W("wind_gusts_10m", 0) + " " + arrowFrom(wdir) + cardinal(wdir)));
   tiles.push(tile(ico("drop"), fmt(marine ? Mv("sea_surface_temperature") : tAt(d0, 1), 1, "°"), ico("temp", "mut") + " aria " + W("temperature_2m", 0, "°")));
-  if (d0.secchi) tiles.push(tile(ico("eye"), fmt(d0.secchi.v, 0, " m"), meter(clarityLevel(d0.secchi.v), "Acqua " + clarityWord(d0.secchi.v)) + " trasparenza verticale " + dayNum(d0.secchi.date)));
+  if (d0.secchi) tiles.push(satTile(d0));
   else if (marine && chl && chl.value != null) tiles.push(tile(ico("leaf"), planktonWord(chl.value), "plancton"));
   if (d0.rain72 > 5 || !marine) tiles.push(tile(ico("rain"), fmt(d0.rain72, 0, " mm"), "72 h"));
   if (d0.best) tiles.push(tile(ico("clock"), d0.best, "più calmo"));
@@ -885,8 +895,7 @@ function render(data){
         tile(ico("temp"), fmt(d.tMin, 0) + "–" + fmt(d.tMax, 0, "°"), "aria") +
         tile(ico("rain"), fmt(d.rainDay, 0, " mm"), "prima: " + fmt(d.rain72, 0, " mm")) +
         tile(ico("sun"), hhmm(d.sunrise) + "–" + hhmm(d.sunset), moon(d.date)) +
-        (d.secchi ? tile(ico("eye"), fmt(d.secchi.v, d.secchi.est ? 0 : 1, " m"),
-          meter(clarityLevel(d.secchi.v), "Acqua " + clarityWord(d.secchi.v)) + " trasparenza verticale " + dayNum(d.secchi.date)) : "") +
+        (d.secchi ? satTile(d) : "") +
         (d.turb ? tile(ico("pin"), fmt(d.turb.tur, 1) + " <small style=\"display:inline;font-weight:400\">FNU</small>",
           '<span title="Torbidità sottocosta da satellite (pixel da 100 m). Dato non ancora tarato: non entra nella stima.">costa ' +
           dayNum(d.turb.date) + "</span>" + turbTrend(d.turb)) : "") +
